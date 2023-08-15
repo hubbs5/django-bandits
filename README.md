@@ -1,2 +1,43 @@
 # django-bandits
-A middleware package for site optimization and Django
+
+This package enables optimization of your Django site via multi-armed bandits.
+
+This package extends [Django-Waffle](https://waffle.readthedocs.io/en/stable/) by wrapping the feature flipper functions with bandit algorithms. This allows automatic testing and optimization as users interact with your site.
+
+**WARNING**
+This is in alpha mode and **NO TESTS** are currently active! If you'd like to contribute, see XXXX.
+
+## Installation
+
+~~Install with: `pip install django-bandits`~~
+
+Not yet active...getting to it soon...
+
+Add to `MIDDLEWARE` after CSRF and Authentication, e.g.:
+
+```
+MIDDLEWARE = [
+    ...
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "bandit_middleware.middleware.UserActivityMiddleware", # It goes here!
+    ...
+]
+```
+
+Update `settings.py` to exclude any particular URL from conversion tracking, e.g.:
+```
+EXCLUDE_FROM_TRACKING = [
+    ADMIN_URL,
+    "/static/",
+]
+```
+
+### Migrations
+
+
+### Enabling Bandits
+
+
+### Performance Tracking
