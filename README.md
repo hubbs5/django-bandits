@@ -21,7 +21,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
-    "bandit_middleware.middleware.UserActivityMiddleware", # It goes here!
+    "django_bandits.middleware.UserActivityMiddleware", # It goes here!
     ...
 ]
 ```
