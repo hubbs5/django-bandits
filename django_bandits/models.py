@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.stats import ttest_ind
+from scipy.stats import ttest_ind, norm
 from django.db import models
 from django.conf import settings
 from django.contrib.auth.models import User
@@ -252,13 +252,56 @@ class EpsilonDecayModel(AbstractBanditModel):
 class UCB1Model(AbstractBanditModel):
   c = models.FloatField(default=2.0)
   significance_level = models.FloatField(default=0.05)
-
+  min_views = models.IntegerField(default=100)
+  winning_arm = models.IntegerField(null=True, blank=True)
+  
   def pull(self) -> bool:
     '''
     Pulls the arm with the highest upper confidence bound
     '''
+    if self.winning_arm is not None:
+      return bool(self.winning_arm)
     rewards = self.get_rewards()
     n_views = self.get_number_of_views()
     flag = np.argmax(rewards + self.c * np.sqrt(
       np.log(np.max(n_views.sum(), 1)) / np.maximum(n_views, 1)))
     return bool(flag)
+
+  def test_arms(self):
+    '''
+    Performs a two-sample t-test on the rewards for each arm
+    '''
+
+    n_views = self.get_number_of_views()
+    if n_views[0] < self.min_views or n_views[1] < self.min_views:
+      return None
+
+    # Get outcomes for each arm
+    outcomes_arm0 = [1] * self.get_number_of_conversions()[0] + [0] * (n_views[0] - self.get_number_of_conversions()[0])
+    outcomes_arm1 = [1] * self.get_number_of_conversions()[1] + [0] * (n_views[1] - self.get_number_of_conversions()[1])
+    
+    t, p_value = ttest_ind(outcomes_arm0, outcomes_arm1)
+    if p_value < self.significance_level:
+      self.winning_option = 0 if np.mean(outcomes_arm0) > np.mean(outcomes_arm1) else 1
+      self.save()
+
+  def get_confidence_bounds(self, arm: int) -> tuple:
+    '''Gets upper and lower bounds for the given arm'''
+    n_views = self.get_number_of_views()[arm]
+    n_convs = self.get_number_of_conversions()[arm]
+    alpha = 1 - self.significance_level
+    prop = n_convs / n_views
+    z = norm.ppf(1 - alpha / 2)
+    error = z * np.sqrt(prop * (1 - prop) / n_views)
+    return prop - error, prop + error
+
+  def get_arm_0_confidence_bounds(self) -> str:
+    low, up = self.get_confidence_bounds(0)
+    return f"{low:.2f} - {up:.2f}"
+
+  def get_arm_1_confidence_bounds(self) -> str:
+    low, up = self.get_confidence_bounds(1)
+    return f"{low:.2f} - {up:.2f}"
+      
+  def update(self):
+    self.test_arms()

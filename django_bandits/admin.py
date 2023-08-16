@@ -28,8 +28,16 @@ class UCB1ModelInline(admin.StackedInline):
   model = UCB1Model
   extra = 0
   fk_name = "flag"
-  fields = ["is_active", "c"]
+  list_display = ["__str__", "confidence_bounds_arm_0", "confidence_bounds_arm_1"]
+  fields = ["is_active", "c", "significance_level", "min_views", "winning_arm"]
 
+  def confidence_bounds_arm_0(self, obj):
+    return obj.get_arm_0_confidence_bounds()
+
+  def confidence_bounds_arm_1(self, obj):
+    return obj.get_arm_1_confidence_bounds()
+  confidence_bounds_arm_0.short_description = "Confidence Bounds Active Flag"
+  confidence_bounds_arm_0.short_description = "Confidence Bounds Inactive Flag"
 
 # class BanditAdmin(admin.ModelAdmin):
 #   form = BanditAdminForm
