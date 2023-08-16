@@ -40,8 +40,12 @@ Update `settings.py` to exclude any particular URL from conversion tracking, e.g
 ```
 EXCLUDE_FROM_TRACKING = [
     ADMIN_URL,
-    "/static/",
 ]
+```
+
+Finally add the following line to your `settings.py` file to ensure the bandit model is overriding Waffle's Flags.
+```
+WAFFLE_FLAG_MODEL = "django_bandits.BanditFlag"
 ```
 
 ### Migrations

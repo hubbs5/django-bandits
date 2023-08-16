@@ -1,5 +1,7 @@
 import numpy as np
+from scipy.stats import ttest_ind
 from django.db import models
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.auth import get_user_model
 from django.contrib.auth import models as auth_models
@@ -9,11 +11,10 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.core.exceptions import ValidationError
 from abc import ABC, abstractmethod
 
-
 from waffle.models import Flag #as WaffleFlag
 from waffle.models import AbstractUserFlag
 
-# from .bandits import EpsilonGreedyBandit, EpsilonDecayBandit, UCB1Bandit
+DEBUG = settings.DEBUG if hasattr(settings, "DEBUG") else False
 
 BANDIT_ALGORITHMS = [
   ("EG", "Epsilon Greedy"),
@@ -180,15 +181,26 @@ class AbstractBanditModel(models.Model):
 
   def get_rewards(self):
     '''Returns the rewards for each option'''
+    rewards = self.get_number_of_conversions() / np.maximum(self.get_number_of_views(), 1)
+    return rewards
+
+  def get_number_of_views(self):
+    '''Returns the number of views for each option'''
     flag_url = self.flag.flagurl
-    inactive_rewards = flag_url.inactive_flag_conversions / max(flag_url.inactive_flag_views, 1)
-    active_rewards = flag_url.active_flag_conversions / max(flag_url.active_flag_views, 1)
-    return np.array([inactive_rewards, active_rewards])
+    return np.array([flag_url.inactive_flag_views,
+                     flag_url.active_flag_views])
+
+  def get_number_of_conversions(self):
+    '''Returns the number of conversions for each option'''
+    flag_url = self.flag.flagurl
+    return np.array([flag_url.inactive_flag_conversions,
+                     flag_url.active_flag_conversions])
     
   def save(self, *args, **kwargs):
     '''Ensure only one bandit is active at a time.'''
     if self.is_active:
-      active_bandits = type(self).objects.filter(flag=self.flag, is_active=True)
+      active_bandits = type(self).objects.filter(flag=self.flag,
+                                                 is_active=True)
       if self.pk:
         active_bandits = active_bandits.exclude(pk=self.pk)
       if active_bandits.exists():
@@ -199,15 +211,17 @@ class EpsilonGreedyModel(AbstractBanditModel):
   epsilon = models.FloatField(default=0.1)
   prob_flag = models.FloatField(default=0.5)
 
-  def pull(self):
+  def pull(self) -> bool:
     p = np.random.random()
     if p < self.epsilon:
-      print("Making random choice")
+      if DEBUG:
+        print("Making random choice")
       flag = np.random.randint(0, self.k)
     else:
       rewards = self.get_rewards()
-      print("Making greedy choice")
-      print(f"Rewards: {rewards}")
+      if DEBUG:
+        print("Making greedy choice")
+        print(f"Rewards: {rewards}")
       if rewards[0] == rewards[1]:
         flag = np.random.randint(0, self.k)
       else:
@@ -237,3 +251,14 @@ class EpsilonDecayModel(AbstractBanditModel):
 
 class UCB1Model(AbstractBanditModel):
   c = models.FloatField(default=2.0)
+  significance_level = models.FloatField(default=0.05)
+
+  def pull(self) -> bool:
+    '''
+    Pulls the arm with the highest upper confidence bound
+    '''
+    rewards = self.get_rewards()
+    n_views = self.get_number_of_views()
+    flag = np.argmax(rewards + self.c * np.sqrt(
+      np.log(np.max(n_views.sum(), 1)) / np.maximum(n_views, 1)))
+    return bool(flag)
