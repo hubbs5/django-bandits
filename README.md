@@ -13,7 +13,16 @@ This is in alpha mode and **NO TESTS** are currently active! If you'd like to co
 
 Not yet active...getting to it soon...
 
-Add to `MIDDLEWARE` after CSRF and Authentication, e.g.:
+Go to your `settings.py` file and add `waffle` to your installed apps list:
+```
+INSTALLED_APPS = [
+    ...
+    "waffle",
+    ...
+]
+```
+
+Additionally, add `django_bandits.middleware.UserActivityMiddleware` to `MIDDLEWARE` after CSRF and authentication middleware, e.g.:
 
 ```
 MIDDLEWARE = [

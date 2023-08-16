@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.contenttypes.admin import GenericTabularInline
 from .models import (UserActivity, FlagUrl, UserActivityFlag, BanditFlag,
-                     Bandit, BanditInstance, EpsilonGreedyModel, EpsilonDecayModel,
+                     EpsilonGreedyModel, EpsilonDecayModel,
                      UCB1Model)
 from .forms import BanditAdminForm
 
