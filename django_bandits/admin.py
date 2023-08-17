@@ -9,28 +9,14 @@ class FlagUrlInline(admin.StackedInline):
     extra = 0
 
 
-class EpsilonDecayModelInline(admin.TabularInline):
-  model = EpsilonDecayModel
-  extra = 0
-  fk_name = "flag"
-  readonly_fields = ["display_confidence_intervals"]
-  fields = ["is_active", "beta", "significance_level", "min_views", "winning_arm"]
-
-
-class EpsilonGreedyModelInline(admin.TabularInline):
-  model = EpsilonGreedyModel
-  extra = 0
-  fk_name = "flag"
-  readonly_fields = ["display_confidence_intervals"]
-  fields = ["is_active", "epsilon", "significance_level", "min_views", "winning_arm"]
-
-
-class UCB1ModelInline(admin.TabularInline):
-  model = UCB1Model
+class BaseBanditInline(admin.TabularInline):
   extra = 0
   fk_name = "flag"
   readonly_fields = ["display_conversion_rate", "display_confidence_intervals"]
-  fields = ["is_active", "c", "significance_level", "min_views", "winning_arm", "display_conversion_rate", "display_confidence_intervals"]
+  fields = ["is_active", "significance_level", "min_views", "winning_arm", 
+            "display_conversion_rate", "display_confidence_intervals"]
+  new_fields = []
+  new_field_positions = []
 
   def display_conversion_rate(self, obj):
     return obj.display_conversion_rate()
@@ -39,6 +25,36 @@ class UCB1ModelInline(admin.TabularInline):
   def display_confidence_intervals(self, obj):
     return obj.display_confidence_intervals()
   display_confidence_intervals.short_description = "Confidence Intervals"
+
+  def insert_bandit_fields(self, bandit_fields: list, positions: list) -> None:
+    '''For inserting bandit specific fields into the admin display'''
+    new_fields = list(self.fields) # Make a copy to avoid overwriting for all classes
+    for i, f in zip(positions, bandit_fields):
+      new_fields.insert(i, f)
+    self.fields = new_fields
+
+  def __init__(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+    self.insert_bandit_fields(self.new_fields, self.new_field_positions)
+
+
+
+class EpsilonDecayModelInline(BaseBanditInline):
+  model = EpsilonDecayModel
+  new_fields = ["beta"]
+  new_field_positions = [1]
+
+
+class EpsilonGreedyModelInline(BaseBanditInline):
+  model = EpsilonGreedyModel
+  new_fields = ["epsilon"]
+  new_field_positions = [1]
+
+
+class UCB1ModelInline(BaseBanditInline):
+  model = UCB1Model
+  new_fields = ["c"]
+  new_field_positions = [1]
 
 
 # Define the admin interface for Flag
