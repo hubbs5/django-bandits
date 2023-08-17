@@ -1,70 +1,44 @@
 from django.contrib import admin
-from django.contrib.contenttypes.admin import GenericTabularInline
 from .models import (UserActivity, FlagUrl, UserActivityFlag, BanditFlag,
                      EpsilonGreedyModel, EpsilonDecayModel,
                      UCB1Model)
-from .forms import BanditAdminForm
+from .forms import BanditAdminForm # Deprecated? Delete?
 
 class FlagUrlInline(admin.StackedInline):
     model = FlagUrl
     extra = 0
 
 
-class EpsilonDecayModelInline(admin.StackedInline):
+class EpsilonDecayModelInline(admin.TabularInline):
   model = EpsilonDecayModel
-  fk_name = "flag"
   extra = 0
-  fields = ["is_active", "beta"]
+  fk_name = "flag"
+  readonly_fields = ["display_confidence_intervals"]
+  fields = ["is_active", "beta", "significance_level", "min_views", "winning_arm"]
 
 
-class EpsilonGreedyModelInline(admin.StackedInline):
+class EpsilonGreedyModelInline(admin.TabularInline):
   model = EpsilonGreedyModel
   extra = 0
   fk_name = "flag"
-  fields = ["is_active", "epsilon", "prob_flag"]
+  readonly_fields = ["display_confidence_intervals"]
+  fields = ["is_active", "epsilon", "significance_level", "min_views", "winning_arm"]
 
 
 class UCB1ModelInline(admin.TabularInline):
   model = UCB1Model
   extra = 0
   fk_name = "flag"
-  list_display = ["__str__", "confidence_bounds_arm_0", "confidence_bounds_arm_1"]
-  fields = ["is_active", "c", "significance_level", "min_views", "winning_arm"]
+  readonly_fields = ["display_conversion_rate", "display_confidence_intervals"]
+  fields = ["is_active", "c", "significance_level", "min_views", "winning_arm", "display_conversion_rate", "display_confidence_intervals"]
 
-  def confidence_bounds_arm_0(self, obj):
-    return obj.get_arm_0_confidence_bounds()
+  def display_conversion_rate(self, obj):
+    return obj.display_conversion_rate()
+  display_conversion_rate.short_description = "Conversion Rate"
 
-  def confidence_bounds_arm_1(self, obj):
-    return obj.get_arm_1_confidence_bounds()
-  confidence_bounds_arm_0.short_description = "Confidence Bounds Active Flag"
-  confidence_bounds_arm_0.short_description = "Confidence Bounds Inactive Flag"
-
-# class BanditAdmin(admin.ModelAdmin):
-#   form = BanditAdminForm
-#   # inlines = ['content_object']
-#   inlines = [
-#     EpsilonGreedyModelInline, 
-#     EpsilonDecayModelInline,
-#     UCB1ModelInline,
-#     ]
-
-
-# class BanditInline(admin.StackedInline):
-#   model = Bandit
-#   form = BanditAdminForm
-#   extra = 0
-#   show_change_link = True
-#   # inlines = [
-#   #   EpsilonGreedyModelInline, 
-#   #   EpsilonDecayModelInline,
-#   #   UCB1ModelInline,
-#   #   ]
-
-
-# class BanditInstanceInline(admin.StackedInline):
-#   model = BanditInstance
-#   extra = 0
-#   show_change_link = True
+  def display_confidence_intervals(self, obj):
+    return obj.display_confidence_intervals()
+  display_confidence_intervals.short_description = "Confidence Intervals"
 
 
 # Define the admin interface for Flag
@@ -106,5 +80,3 @@ class UserActivityAdmin(admin.ModelAdmin):
 # Register the new FlagAdmin
 admin.site.register(BanditFlag, FlagAdmin)
 admin.site.register(UserActivity, UserActivityAdmin)
-# admin.site.register(Bandit, BanditAdmin)
-# admin.site.register(EpsilonGreedyBandit, EpsilonGreedyBanditAdmin)

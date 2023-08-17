@@ -125,6 +125,7 @@ class Bandit(models.Model):
         raise ValidationError("Only one bandit can be active at a time.")
     super().save(*args, **kwargs)
 
+# TODO: Deprecated, delete
 class BanditInstance(models.Model):
   # Used for Admin purposes
   flag = models.ForeignKey(BanditFlag, on_delete=models.CASCADE)
@@ -135,9 +136,11 @@ class AbstractBanditModel(models.Model):
   flag = models.ForeignKey(BanditFlag, related_name='%(class)s_set', 
                            on_delete=models.CASCADE, null=True, blank=True)
   is_active = models.BooleanField(default=False)
+  significance_level = models.FloatField(default=0.05)
+  min_views = models.IntegerField(default=100)
+  winning_arm = models.IntegerField(null=True, blank=True)
   
   k = 2 # Number of options
-  # TODO: Use caching to speed up the bandit algorithm
 
   class Meta:
     abstract = True
@@ -146,6 +149,9 @@ class AbstractBanditModel(models.Model):
                                 condition=models.Q(is_active=True), 
                                 name='unique_active_bandit_%(class)s')
     ]
+
+  # def __str__(self):
+  #   return self.display_bounds()
 
   @abstractmethod
   def pull(self):
@@ -189,9 +195,8 @@ class AbstractBanditModel(models.Model):
     '''
     Performs a two-sample t-test on the rewards for each arm
     '''
-
     n_views = self.get_number_of_views()
-    if n_views[0] < self.min_views or n_views[1] < self.min_views:
+    if n_views.sum() < self.min_views:
       return None
 
     # Converts outcomes to list of binary outcomes for use with ttest_ind
@@ -204,7 +209,7 @@ class AbstractBanditModel(models.Model):
       self.winning_option = 0 if np.mean(outcomes_arm0) > np.mean(outcomes_arm1) else 1
       self.save()
 
-  def get_confidence_bounds(self, arm: int) -> tuple:
+  def get_confidence_intervals(self, arm: int) -> tuple:
     '''Gets upper and lower bounds for the given arm'''
     n_views = self.get_number_of_views()[arm]
     n_convs = self.get_number_of_conversions()[arm]
@@ -214,13 +219,22 @@ class AbstractBanditModel(models.Model):
     error = z * np.sqrt(prop * (1 - prop) / n_views)
     return prop - error, prop + error
 
-  def get_arm_0_confidence_bounds(self) -> str:
-    low, up = self.get_confidence_bounds(0)
+  def get_inactive_flag_confidence_intervals(self) -> str:
+    low, up = self.get_confidence_intervals(0)
     return f"{low:.2f} - {up:.2f}"
 
-  def get_arm_1_confidence_bounds(self) -> str:
-    low, up = self.get_confidence_bounds(1)
+  def get_active_flag_confidence_intervals(self) -> str:
+    low, up = self.get_confidence_intervals(1)
     return f"{low:.2f} - {up:.2f}"
+
+  def display_confidence_intervals(self):
+    inactive = self.get_inactive_flag_confidence_intervals()
+    active = self.get_active_flag_confidence_intervals()
+    return f"Active Flag:\t{active}\nInactive Flag:\t{inactive}"
+
+  def display_conversion_rate(self):
+    rewards = self.get_rewards()
+    return f"Active Flag:\t{rewards[1]:.2%}\nInactive Flag:\t{rewards[0]:.2%}"
 
 class EpsilonGreedyModel(AbstractBanditModel):
   epsilon = models.FloatField(default=0.1)
@@ -266,9 +280,6 @@ class EpsilonDecayModel(AbstractBanditModel):
 
 class UCB1Model(AbstractBanditModel):
   c = models.FloatField(default=2.0)
-  significance_level = models.FloatField(default=0.05)
-  min_views = models.IntegerField(default=100)
-  winning_arm = models.IntegerField(null=True, blank=True)
   
   def pull(self) -> bool:
     '''
