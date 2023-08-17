@@ -80,7 +80,7 @@ In the example below, we're tracking the homepage (`/`) and want to see how many
 This will consider any user who views your source URL and target URL to be a conversion during the session and will update the count shown in the image above.
 
 To add a bandit, you'll need to select one of the bandit options from the list below:
-![Select from Epsilon Greedy, Epsilon Decay, or UCB1 Bandits](bandit-selection.png)
+![Select from Epsilon Greedy, Epsilon Decay, or UCB1 Bandits](docs/images/bandit-selection.png)
 
 Some bandits have customizable parameters (e.g. how frequently a random action is taken such as $\epsilon$). All allow you to set a minimum number of views and confidence interval before a winning version is selected (see more details below).
 
