@@ -5,9 +5,10 @@ from .models import BanditFlag
 
 from waffle import flag_is_active
 
+DEBUG = settings.DEBUG if hasattr(settings, "DEBUG") else False
 class UserActivityMiddleware:
   # TODO: Exclude 404 pages
-  exclude = ["/admin"] if not hasattr(settings, "EXCLUDE_FROM_TRACKING") else settings.EXCLUDE_FROM_TRACKING
+  exclude = settings.EXCLUDE_FROM_TRACKING if hasattr(settings, "EXCLUDE_FROM_TRACKING") else ["/admin"]
   exclude = [path if path.startswith("/") else "/" + path for path in exclude]
 
   def __init__(self, get_response):
@@ -36,11 +37,11 @@ class UserActivityMiddleware:
     for flag in BanditFlag.objects.all():
       flag_url = FlagUrl.objects.filter(flag=flag).first()
       if flag_url:
-        # Check for source URL and feature flags
-        if current_url.endswith(flag_url.source_url):
+        if current_url == flag_url.source_url:
           # is_flag_active determines whether or not the user sees the feature
           is_flag_active = flag_is_active(request, flag.name)
-          print(f"Checking flag {flag.name} for user {request.user}\nFlag URL: {flag_url.source_url}\nFlag is active: {is_flag_active}")
+          if DEBUG:
+            print(f"Checking flag {flag.name} for user {request.user}\nFlag URL: {flag_url.source_url}\nFlag is active: {is_flag_active}")
           if is_flag_active is not None:
             ua_flag = UserActivityFlag.objects.create(
               user_activity=user_activity,
@@ -52,12 +53,9 @@ class UserActivityMiddleware:
             else:
               flag_url.inactive_flag_views += 1
             flag_url.save()
-          else:
-            # TODO: Add warning log here?
-            pass
-          # print(f"Flag URL = {flag_url.source_url}\nActive = {is_flag_active}")
+          
         # Checks to see if the user has reached the target URL
-        elif current_url.endswith(flag_url.target_url):
+        elif current_url == flag_url.target_url:
           source_reached = UserActivity.objects.filter(
             session_key=session_key, url=flag_url.source_url).exists()
           if source_reached:
@@ -68,13 +66,15 @@ class UserActivityMiddleware:
               session_key, flag_url.source_url)
             # TODO: Update to handle cases where users didn't see the particular
             # landing page or feature flag at all
+            if DEBUG:
+              print(f"User reached target URL {flag_url.target_url}\nActive source flag: {active_source_flag}")
             if active_source_flag:
               flag_url.active_flag_conversions += 1
             else:
               flag_url.inactive_flag_conversions += 1
             flag_url.save()
             # Update bandit stats for display in admin
-            for related_set in [flag.epsilongreedymodel_set]:
+            for related_set in [flag.epsilongreedymodel_set, flag.epsilondecaymodel_set, flag.ucb1model_set]:
               bandit_model_instance = related_set.filter(is_active=True).first()
               if bandit_model_instance:
                 bandit_model_instance.update()
