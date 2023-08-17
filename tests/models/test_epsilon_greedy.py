@@ -1,39 +1,51 @@
-# TODO: Update to use pytest style (see test_epsilon_decay.py for example)
-from django.test import TestCase
-from unittest.mock import patch
+import pytest
 from django_bandits.models import EpsilonGreedyModel, BanditFlag, FlagUrl
 
+@pytest.fixture
+def setup_data(db):
+    bandit_flag = BanditFlag.objects.create()
+    flag_url = FlagUrl.objects.create(flag=bandit_flag)
+    model = EpsilonGreedyModel.objects.create(flag=bandit_flag, epsilon=0.1)
+    return bandit_flag, flag_url, model
 
-class TestEpsilonGreedyModel(TestCase):
-    def setUp(self) -> None:
-        self.bandit_flag = BanditFlag.objects.create()
-        self.flag_url = FlagUrl.objects.create(flag=self.bandit_flag)
-        self.eps_greedy_model = EpsilonGreedyModel.objects.create(
-            flag=self.bandit_flag, epsilon=0.1
-        )
-        return super().setUp()
+class TestEpsilonGreedyModel:
 
-    @patch("numpy.random.random")
-    @patch("numpy.random.randint")
-    def test_pull_random_choice(self, mock_randint, mock_random):
+    @pytest.mark.parametrize("randint_return, expected_output", [(0, False), (1, True)])
+    def test_pull_random_choice(
+        self, setup_data, mocker, randint_return, expected_output
+    ):
         """Simulate random choice"""
-        mock_randint.return_value = 0
-        mock_random.return_value = 0
+        _, _, eps_greedy_model = setup_data
+        mocker.patch("numpy.random.random", return_value=0.05)
+        mocker.patch("numpy.random.randint", return_value=randint_return)
 
-        active = self.eps_greedy_model.pull()
-        # Mocked randint set to 0, e.g. False
-        self.assertFalse(active)
+        active = eps_greedy_model.pull()
+        assert active == expected_output
 
-    @patch("numpy.random.random")
-    def test_pull_greedy_choice(self, mock_random):
-        """Simulate greedy choice"""
-        mock_random.return_value = 0.15
-        self.flag_url.active_flag_views = 100
-        self.flag_url.inactive_flag_views = 100
-        self.flag_url.active_flag_conversions = 70
-        self.flag_url.inactive_flag_conversions = 50
-        self.flag_url.save()
+    @pytest.mark.parametrize(
+        "active_flag_conversions, inactive_flag_conversions", [(50, 10), (10, 50)]
+    )
+    def test_pull_greedy_choice(
+        self, setup_data, mocker, active_flag_conversions, inactive_flag_conversions
+    ):
+        _, flag_url, eps_greedy_model = setup_data
 
-        active = self.eps_greedy_model.pull()
-        # Mocked greedy selection with active flag > inactive flag
-        self.assertTrue(active)
+        mocker.patch("numpy.random.random", return_value=1)
+
+        flag_url.active_flag_views = 100
+        flag_url.inactive_flag_views = 100
+        flag_url.active_flag_conversions = active_flag_conversions
+        flag_url.inactive_flag_conversions = inactive_flag_conversions
+        flag_url.save()
+        active = eps_greedy_model.pull()
+        expected_output = active_flag_conversions > inactive_flag_conversions
+        assert active == expected_output
+
+    @pytest.mark.parametrize("winning_arm", [0, 1])
+    def test_winning_arm(self, setup_data, winning_arm):
+        _, _, eps_greedy_model = setup_data
+
+        eps_greedy_model.winning_arm = winning_arm
+        eps_greedy_model.save()
+        active = eps_greedy_model.pull()
+        assert active == bool(winning_arm)

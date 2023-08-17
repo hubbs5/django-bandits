@@ -11,6 +11,7 @@ def setup_data(db):
 
 
 class TestEpsilonDecayModel:
+    
     @pytest.mark.parametrize("randint_return, expected_output", [(0, False), (1, True)])
     def test_pull_random_choice(
         self, setup_data, mocker, randint_return, expected_output
