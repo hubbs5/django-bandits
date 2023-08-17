@@ -74,7 +74,7 @@ class UserActivityMiddleware:
               flag_url.inactive_flag_conversions += 1
             flag_url.save()
             # Update bandit stats for display in admin
-            for related_set in [flag.epsilongreedymodel_set]:
+            for related_set in [flag.epsilongreedymodel_set, flag.epsilondecaymodel_set, flag.ucb1model_set]:
               bandit_model_instance = related_set.filter(is_active=True).first()
               if bandit_model_instance:
                 bandit_model_instance.update()

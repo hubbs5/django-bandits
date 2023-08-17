@@ -39,7 +39,7 @@ class BanditFlag(AbstractUserFlag):
 
     # Try to retrieve the active bandit model
     bandit_model_instance = None
-    for related_set in [self.epsilongreedymodel_set, self.ucb1model_set]:  # Add more sets as needed
+    for related_set in [self.epsilongreedymodel_set, self.epsilondecaymodel_set, self.ucb1model_set]:  # Add more sets as needed
         bandit_model_instance = related_set.filter(is_active=True).first()
         if bandit_model_instance:
             break
