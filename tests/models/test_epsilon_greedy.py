@@ -1,12 +1,12 @@
 from django.test import TestCase
 from unittest.mock import patch
-from django_bandits.models import EpsilonGreedyModel, BanditFlag, FlagURL
+from django_bandits.models import EpsilonGreedyModel, BanditFlag, FlagUrl
 
 
 class TestEpsilonGreedyModel(TestCase):
     def setUp(self) -> None:
         self.bandit_flag = BanditFlag.objects.create()
-        self.flag_url = FlagURL.objects.create(flag=self.bandit_flag)
+        self.flag_url = FlagUrl.objects.create(flag=self.bandit_flag)
         self.eps_greedy_model = EpsilonGreedyModel.objects.create(
             flag=self.bandit_flag, epsilon=0.1
         )
