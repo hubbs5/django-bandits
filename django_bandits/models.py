@@ -129,31 +129,9 @@ class BanditInstance(models.Model):
   # Used for Admin purposes
   flag = models.ForeignKey(BanditFlag, on_delete=models.CASCADE)
   bandit = models.OneToOneField(Bandit, on_delete=models.CASCADE)
-  
-# class Bandit(models.Model):
-#   name = models.CharField(max_length=200,
-#                           choices=BANDIT_ALGORITHMS,
-#                           default="EG")
-#   flag = models.ForeignKey(BanditFlag, on_delete=models.CASCADE)
-#   content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
-#   object_id = models.PositiveIntegerField()
-#   content_object = GenericForeignKey('content_type', 'object_id')
-#   is_active = models.BooleanField(default=False)
-#   timestamp = models.DateTimeField(auto_now_add=True)
-
-#   def save(self, *args, **kwargs):
-#     '''Ensure only one active bandit is available at a time.'''
-#     if self.is_active:
-#       active_bandits = Bandit.objects.filter(BanditFlag=self.flag, is_active=True)
-#       if self.pk:
-#         active_bandits = active_bandits.exclude(pk=self.pk)
-#       if active_bandits.exists():
-#         raise ValidationError("Only one bandit can be active at a time.")
-#     super().save(*args, **kwargs)
 
 
 class AbstractBanditModel(models.Model):
-  # bandit = models.ForeignKey(Bandit, on_delete=models.CASCADE)
   flag = models.ForeignKey(BanditFlag, related_name='%(class)s_set', 
                            on_delete=models.CASCADE, null=True, blank=True)
   is_active = models.BooleanField(default=False)
@@ -206,6 +184,43 @@ class AbstractBanditModel(models.Model):
       if active_bandits.exists():
         raise ValidationError("Only one bandit can be active at a time.")
     super().save(*args, **kwargs)
+
+  def test_arms(self):
+    '''
+    Performs a two-sample t-test on the rewards for each arm
+    '''
+
+    n_views = self.get_number_of_views()
+    if n_views[0] < self.min_views or n_views[1] < self.min_views:
+      return None
+
+    # Converts outcomes to list of binary outcomes for use with ttest_ind
+    n_convs = self.get_number_of_conversions()
+    outcomes_arm0 = [1] * n_convs[0] + [0] * (n_views[0] - n_convs[0])
+    outcomes_arm1 = [1] * n_convs[1] + [0] * (n_views[1] - n_convs[1])
+    
+    t, p_value = ttest_ind(outcomes_arm0, outcomes_arm1)
+    if p_value < self.significance_level:
+      self.winning_option = 0 if np.mean(outcomes_arm0) > np.mean(outcomes_arm1) else 1
+      self.save()
+
+  def get_confidence_bounds(self, arm: int) -> tuple:
+    '''Gets upper and lower bounds for the given arm'''
+    n_views = self.get_number_of_views()[arm]
+    n_convs = self.get_number_of_conversions()[arm]
+    alpha = 1 - self.significance_level
+    prop = n_convs / n_views
+    z = norm.ppf(1 - alpha / 2)
+    error = z * np.sqrt(prop * (1 - prop) / n_views)
+    return prop - error, prop + error
+
+  def get_arm_0_confidence_bounds(self) -> str:
+    low, up = self.get_confidence_bounds(0)
+    return f"{low:.2f} - {up:.2f}"
+
+  def get_arm_1_confidence_bounds(self) -> str:
+    low, up = self.get_confidence_bounds(1)
+    return f"{low:.2f} - {up:.2f}"
 
 class EpsilonGreedyModel(AbstractBanditModel):
   epsilon = models.FloatField(default=0.1)
@@ -266,42 +281,6 @@ class UCB1Model(AbstractBanditModel):
     flag = np.argmax(rewards + self.c * np.sqrt(
       np.log(np.max(n_views.sum(), 1)) / np.maximum(n_views, 1)))
     return bool(flag)
-
-  def test_arms(self):
-    '''
-    Performs a two-sample t-test on the rewards for each arm
-    '''
-
-    n_views = self.get_number_of_views()
-    if n_views[0] < self.min_views or n_views[1] < self.min_views:
-      return None
-
-    # Get outcomes for each arm
-    outcomes_arm0 = [1] * self.get_number_of_conversions()[0] + [0] * (n_views[0] - self.get_number_of_conversions()[0])
-    outcomes_arm1 = [1] * self.get_number_of_conversions()[1] + [0] * (n_views[1] - self.get_number_of_conversions()[1])
-    
-    t, p_value = ttest_ind(outcomes_arm0, outcomes_arm1)
-    if p_value < self.significance_level:
-      self.winning_option = 0 if np.mean(outcomes_arm0) > np.mean(outcomes_arm1) else 1
-      self.save()
-
-  def get_confidence_bounds(self, arm: int) -> tuple:
-    '''Gets upper and lower bounds for the given arm'''
-    n_views = self.get_number_of_views()[arm]
-    n_convs = self.get_number_of_conversions()[arm]
-    alpha = 1 - self.significance_level
-    prop = n_convs / n_views
-    z = norm.ppf(1 - alpha / 2)
-    error = z * np.sqrt(prop * (1 - prop) / n_views)
-    return prop - error, prop + error
-
-  def get_arm_0_confidence_bounds(self) -> str:
-    low, up = self.get_confidence_bounds(0)
-    return f"{low:.2f} - {up:.2f}"
-
-  def get_arm_1_confidence_bounds(self) -> str:
-    low, up = self.get_confidence_bounds(1)
-    return f"{low:.2f} - {up:.2f}"
       
   def update(self):
     self.test_arms()

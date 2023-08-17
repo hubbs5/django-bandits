@@ -24,7 +24,7 @@ class EpsilonGreedyModelInline(admin.StackedInline):
   fields = ["is_active", "epsilon", "prob_flag"]
 
 
-class UCB1ModelInline(admin.StackedInline):
+class UCB1ModelInline(admin.TabularInline):
   model = UCB1Model
   extra = 0
   fk_name = "flag"
