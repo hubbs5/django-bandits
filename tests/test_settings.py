@@ -28,5 +28,6 @@ DATABASES = {
     }
 }
 
-TEST_RUNNER = 'pytest_django.runner.DjangoPytestTestRunner'
+TEST_RUNNER = "pytest_django.runner.DjangoPytestTestRunner"
 WAFFLE_FLAG_MODEL = "django_bandits.BanditFlag"
+USE_TZ = True  # Set to true to avoid django 5.0 warning

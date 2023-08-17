@@ -28,7 +28,14 @@ pytest = "^7.4.0"
 black = "^23.7.0"
 pytest-dependency = "^0.5.1"
 pytest-django = "^4.5.2"
+pytest-mock = "^3.11.1"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "tests.test_settings"
+python_files = ["tests.py", "test_*.py", "*_tests.py"]
+addopts = "--reuse-db"
+django_find_project = false
