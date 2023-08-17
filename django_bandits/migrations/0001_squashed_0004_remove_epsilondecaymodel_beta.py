@@ -8,198 +8,488 @@ import django_bandits.models
 
 
 class Migration(migrations.Migration):
-
-    replaces = [('django_bandits', '0001_initial'), ('django_bandits', '0002_ucb1model_min_views_ucb1model_significance_level_and_more'), ('django_bandits', '0003_epsilondecaymodel_min_views_and_more'), ('django_bandits', '0004_remove_epsilondecaymodel_beta')]
+    replaces = [
+        ("django_bandits", "0001_initial"),
+        (
+            "django_bandits",
+            "0002_ucb1model_min_views_ucb1model_significance_level_and_more",
+        ),
+        ("django_bandits", "0003_epsilondecaymodel_min_views_and_more"),
+        ("django_bandits", "0004_remove_epsilondecaymodel_beta"),
+    ]
 
     initial = True
 
     dependencies = [
-        ('auth', '0012_alter_user_first_name_max_length'),
+        ("auth", "0012_alter_user_first_name_max_length"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('contenttypes', '0002_remove_content_type_name'),
+        ("contenttypes", "0002_remove_content_type_name"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Bandit',
+            name="Bandit",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(choices=[('EG', 'Epsilon Greedy'), ('ED', 'Epsilon Decay'), ('UCB1', 'Upper Confidence Bound')], default='EG', max_length=200)),
-                ('object_id', models.PositiveIntegerField()),
-                ('is_active', models.BooleanField(default=False)),
-                ('timestamp', models.DateTimeField(auto_now_add=True)),
-                ('content_type', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='contenttypes.contenttype')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "name",
+                    models.CharField(
+                        choices=[
+                            ("EG", "Epsilon Greedy"),
+                            ("ED", "Epsilon Decay"),
+                            ("UCB1", "Upper Confidence Bound"),
+                        ],
+                        default="EG",
+                        max_length=200,
+                    ),
+                ),
+                ("object_id", models.PositiveIntegerField()),
+                ("is_active", models.BooleanField(default=False)),
+                ("timestamp", models.DateTimeField(auto_now_add=True)),
+                (
+                    "content_type",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="contenttypes.contenttype",
+                    ),
+                ),
             ],
         ),
         migrations.CreateModel(
-            name='BanditFlag',
+            name="BanditFlag",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(help_text='The human/computer readable name.', max_length=100, unique=True, verbose_name='Name')),
-                ('everyone', models.BooleanField(blank=True, help_text='Flip this flag on (Yes) or off (No) for everyone, overriding all other settings. Leave as Unknown to use normally.', null=True, verbose_name='Everyone')),
-                ('percent', models.DecimalField(blank=True, decimal_places=1, help_text='A number between 0.0 and 99.9 to indicate a percentage of users for whom this flag will be active.', max_digits=3, null=True, verbose_name='Percent')),
-                ('testing', models.BooleanField(default=False, help_text='Allow this flag to be set for a session for user testing', verbose_name='Testing')),
-                ('superusers', models.BooleanField(default=True, help_text='Flag always active for superusers?', verbose_name='Superusers')),
-                ('staff', models.BooleanField(default=False, help_text='Flag always active for staff?', verbose_name='Staff')),
-                ('authenticated', models.BooleanField(default=False, help_text='Flag always active for authenticated users?', verbose_name='Authenticated')),
-                ('languages', models.TextField(blank=True, default='', help_text='Activate this flag for users with one of these languages (comma-separated list)', verbose_name='Languages')),
-                ('rollout', models.BooleanField(default=False, help_text='Activate roll-out mode?', verbose_name='Rollout')),
-                ('note', models.TextField(blank=True, help_text='Note where this Flag is used.', verbose_name='Note')),
-                ('created', models.DateTimeField(db_index=True, default=django.utils.timezone.now, help_text='Date when this Flag was created.', verbose_name='Created')),
-                ('modified', models.DateTimeField(default=django.utils.timezone.now, help_text='Date when this Flag was last modified.', verbose_name='Modified')),
-                ('object_id', models.PositiveIntegerField(blank=True, null=True)),
-                ('content_type', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='contenttypes.contenttype')),
-                ('groups', models.ManyToManyField(blank=True, help_text='Activate this flag for these user groups.', to='auth.group', verbose_name='Groups')),
-                ('users', models.ManyToManyField(blank=True, help_text='Activate this flag for these users.', to=settings.AUTH_USER_MODEL, verbose_name='Users')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "name",
+                    models.CharField(
+                        help_text="The human/computer readable name.",
+                        max_length=100,
+                        unique=True,
+                        verbose_name="Name",
+                    ),
+                ),
+                (
+                    "everyone",
+                    models.BooleanField(
+                        blank=True,
+                        help_text="Flip this flag on (Yes) or off (No) for everyone, overriding all other settings. Leave as Unknown to use normally.",
+                        null=True,
+                        verbose_name="Everyone",
+                    ),
+                ),
+                (
+                    "percent",
+                    models.DecimalField(
+                        blank=True,
+                        decimal_places=1,
+                        help_text="A number between 0.0 and 99.9 to indicate a percentage of users for whom this flag will be active.",
+                        max_digits=3,
+                        null=True,
+                        verbose_name="Percent",
+                    ),
+                ),
+                (
+                    "testing",
+                    models.BooleanField(
+                        default=False,
+                        help_text="Allow this flag to be set for a session for user testing",
+                        verbose_name="Testing",
+                    ),
+                ),
+                (
+                    "superusers",
+                    models.BooleanField(
+                        default=True,
+                        help_text="Flag always active for superusers?",
+                        verbose_name="Superusers",
+                    ),
+                ),
+                (
+                    "staff",
+                    models.BooleanField(
+                        default=False,
+                        help_text="Flag always active for staff?",
+                        verbose_name="Staff",
+                    ),
+                ),
+                (
+                    "authenticated",
+                    models.BooleanField(
+                        default=False,
+                        help_text="Flag always active for authenticated users?",
+                        verbose_name="Authenticated",
+                    ),
+                ),
+                (
+                    "languages",
+                    models.TextField(
+                        blank=True,
+                        default="",
+                        help_text="Activate this flag for users with one of these languages (comma-separated list)",
+                        verbose_name="Languages",
+                    ),
+                ),
+                (
+                    "rollout",
+                    models.BooleanField(
+                        default=False,
+                        help_text="Activate roll-out mode?",
+                        verbose_name="Rollout",
+                    ),
+                ),
+                (
+                    "note",
+                    models.TextField(
+                        blank=True,
+                        help_text="Note where this Flag is used.",
+                        verbose_name="Note",
+                    ),
+                ),
+                (
+                    "created",
+                    models.DateTimeField(
+                        db_index=True,
+                        default=django.utils.timezone.now,
+                        help_text="Date when this Flag was created.",
+                        verbose_name="Created",
+                    ),
+                ),
+                (
+                    "modified",
+                    models.DateTimeField(
+                        default=django.utils.timezone.now,
+                        help_text="Date when this Flag was last modified.",
+                        verbose_name="Modified",
+                    ),
+                ),
+                ("object_id", models.PositiveIntegerField(blank=True, null=True)),
+                (
+                    "content_type",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="contenttypes.contenttype",
+                    ),
+                ),
+                (
+                    "groups",
+                    models.ManyToManyField(
+                        blank=True,
+                        help_text="Activate this flag for these user groups.",
+                        to="auth.group",
+                        verbose_name="Groups",
+                    ),
+                ),
+                (
+                    "users",
+                    models.ManyToManyField(
+                        blank=True,
+                        help_text="Activate this flag for these users.",
+                        to=settings.AUTH_USER_MODEL,
+                        verbose_name="Users",
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Flag',
-                'verbose_name_plural': 'Flags',
-                'abstract': False,
+                "verbose_name": "Flag",
+                "verbose_name_plural": "Flags",
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='UserActivity',
+            name="UserActivity",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('session_key', models.CharField(max_length=40, null=True)),
-                ('url', models.URLField()),
-                ('target_url_visit', models.BooleanField(default=False)),
-                ('timestamp', models.DateTimeField(auto_now_add=True)),
-                ('is_staff', models.BooleanField(default=False)),
-                ('flags', models.ManyToManyField(blank=True, to=settings.WAFFLE_FLAG_MODEL)),
-                ('user', models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, to=settings.AUTH_USER_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("session_key", models.CharField(max_length=40, null=True)),
+                ("url", models.URLField()),
+                ("target_url_visit", models.BooleanField(default=False)),
+                ("timestamp", models.DateTimeField(auto_now_add=True)),
+                ("is_staff", models.BooleanField(default=False)),
+                (
+                    "flags",
+                    models.ManyToManyField(blank=True, to=settings.WAFFLE_FLAG_MODEL),
+                ),
+                (
+                    "user",
+                    models.ForeignKey(
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             bases=(django_bandits.models.URLSanitizationMixin, models.Model),
         ),
         migrations.CreateModel(
-            name='UserActivityFlag',
+            name="UserActivityFlag",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('timestamp', models.DateTimeField(auto_now_add=True)),
-                ('is_active', models.BooleanField(default=False, null=True)),
-                ('flag', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to=settings.WAFFLE_FLAG_MODEL)),
-                ('user_activity', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='django_bandits.useractivity')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("timestamp", models.DateTimeField(auto_now_add=True)),
+                ("is_active", models.BooleanField(default=False, null=True)),
+                (
+                    "flag",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to=settings.WAFFLE_FLAG_MODEL,
+                    ),
+                ),
+                (
+                    "user_activity",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="django_bandits.useractivity",
+                    ),
+                ),
             ],
         ),
         migrations.CreateModel(
-            name='UCB1Model',
+            name="UCB1Model",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('is_active', models.BooleanField(default=False)),
-                ('c', models.FloatField(default=2.0)),
-                ('flag', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='%(class)s_set', to=settings.WAFFLE_FLAG_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("is_active", models.BooleanField(default=False)),
+                ("c", models.FloatField(default=2.0)),
+                (
+                    "flag",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="%(class)s_set",
+                        to=settings.WAFFLE_FLAG_MODEL,
+                    ),
+                ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='FlagUrl',
+            name="FlagUrl",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('source_url', models.CharField(blank=True, max_length=200, null=True)),
-                ('target_url', models.CharField(blank=True, max_length=200, null=True)),
-                ('active_flag_views', models.IntegerField(default=0)),
-                ('inactive_flag_views', models.IntegerField(default=0)),
-                ('active_flag_conversions', models.IntegerField(default=0)),
-                ('inactive_flag_conversions', models.IntegerField(default=0)),
-                ('flag', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, to=settings.WAFFLE_FLAG_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("source_url", models.CharField(blank=True, max_length=200, null=True)),
+                ("target_url", models.CharField(blank=True, max_length=200, null=True)),
+                ("active_flag_views", models.IntegerField(default=0)),
+                ("inactive_flag_views", models.IntegerField(default=0)),
+                ("active_flag_conversions", models.IntegerField(default=0)),
+                ("inactive_flag_conversions", models.IntegerField(default=0)),
+                (
+                    "flag",
+                    models.OneToOneField(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to=settings.WAFFLE_FLAG_MODEL,
+                    ),
+                ),
             ],
             bases=(django_bandits.models.URLSanitizationMixin, models.Model),
         ),
         migrations.CreateModel(
-            name='EpsilonGreedyModel',
+            name="EpsilonGreedyModel",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('is_active', models.BooleanField(default=False)),
-                ('epsilon', models.FloatField(default=0.1)),
-                ('prob_flag', models.FloatField(default=0.5)),
-                ('flag', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='%(class)s_set', to=settings.WAFFLE_FLAG_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("is_active", models.BooleanField(default=False)),
+                ("epsilon", models.FloatField(default=0.1)),
+                ("prob_flag", models.FloatField(default=0.5)),
+                (
+                    "flag",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="%(class)s_set",
+                        to=settings.WAFFLE_FLAG_MODEL,
+                    ),
+                ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='EpsilonDecayModel',
+            name="EpsilonDecayModel",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('is_active', models.BooleanField(default=False)),
-                ('beta', models.FloatField(default=0.99)),
-                ('flag', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='%(class)s_set', to=settings.WAFFLE_FLAG_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("is_active", models.BooleanField(default=False)),
+                ("beta", models.FloatField(default=0.99)),
+                (
+                    "flag",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="%(class)s_set",
+                        to=settings.WAFFLE_FLAG_MODEL,
+                    ),
+                ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='BanditInstance',
+            name="BanditInstance",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('bandit', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, to='django_bandits.bandit')),
-                ('flag', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to=settings.WAFFLE_FLAG_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "bandit",
+                    models.OneToOneField(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="django_bandits.bandit",
+                    ),
+                ),
+                (
+                    "flag",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to=settings.WAFFLE_FLAG_MODEL,
+                    ),
+                ),
             ],
         ),
         migrations.AddConstraint(
-            model_name='ucb1model',
-            constraint=models.UniqueConstraint(condition=models.Q(('is_active', True)), fields=('flag', 'is_active'), name='unique_active_bandit_ucb1model'),
+            model_name="ucb1model",
+            constraint=models.UniqueConstraint(
+                condition=models.Q(("is_active", True)),
+                fields=("flag", "is_active"),
+                name="unique_active_bandit_ucb1model",
+            ),
         ),
         migrations.AddConstraint(
-            model_name='epsilongreedymodel',
-            constraint=models.UniqueConstraint(condition=models.Q(('is_active', True)), fields=('flag', 'is_active'), name='unique_active_bandit_epsilongreedymodel'),
+            model_name="epsilongreedymodel",
+            constraint=models.UniqueConstraint(
+                condition=models.Q(("is_active", True)),
+                fields=("flag", "is_active"),
+                name="unique_active_bandit_epsilongreedymodel",
+            ),
         ),
         migrations.AddConstraint(
-            model_name='epsilondecaymodel',
-            constraint=models.UniqueConstraint(condition=models.Q(('is_active', True)), fields=('flag', 'is_active'), name='unique_active_bandit_epsilondecaymodel'),
+            model_name="epsilondecaymodel",
+            constraint=models.UniqueConstraint(
+                condition=models.Q(("is_active", True)),
+                fields=("flag", "is_active"),
+                name="unique_active_bandit_epsilondecaymodel",
+            ),
         ),
         migrations.AddField(
-            model_name='ucb1model',
-            name='min_views',
+            model_name="ucb1model",
+            name="min_views",
             field=models.IntegerField(default=100),
         ),
         migrations.AddField(
-            model_name='ucb1model',
-            name='significance_level',
+            model_name="ucb1model",
+            name="significance_level",
             field=models.FloatField(default=0.05),
         ),
         migrations.AddField(
-            model_name='ucb1model',
-            name='winning_arm',
+            model_name="ucb1model",
+            name="winning_arm",
             field=models.IntegerField(blank=True, null=True),
         ),
         migrations.AddField(
-            model_name='epsilondecaymodel',
-            name='min_views',
+            model_name="epsilondecaymodel",
+            name="min_views",
             field=models.IntegerField(default=100),
         ),
         migrations.AddField(
-            model_name='epsilondecaymodel',
-            name='significance_level',
+            model_name="epsilondecaymodel",
+            name="significance_level",
             field=models.FloatField(default=0.05),
         ),
         migrations.AddField(
-            model_name='epsilondecaymodel',
-            name='winning_arm',
+            model_name="epsilondecaymodel",
+            name="winning_arm",
             field=models.IntegerField(blank=True, null=True),
         ),
         migrations.AddField(
-            model_name='epsilongreedymodel',
-            name='min_views',
+            model_name="epsilongreedymodel",
+            name="min_views",
             field=models.IntegerField(default=100),
         ),
         migrations.AddField(
-            model_name='epsilongreedymodel',
-            name='significance_level',
+            model_name="epsilongreedymodel",
+            name="significance_level",
             field=models.FloatField(default=0.05),
         ),
         migrations.AddField(
-            model_name='epsilongreedymodel',
-            name='winning_arm',
+            model_name="epsilongreedymodel",
+            name="winning_arm",
             field=models.IntegerField(blank=True, null=True),
         ),
         migrations.RemoveField(
-            model_name='epsilondecaymodel',
-            name='beta',
+            model_name="epsilondecaymodel",
+            name="beta",
         ),
     ]

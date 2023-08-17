@@ -2,10 +2,11 @@ from django import forms
 
 from .models import Bandit
 
+
 class BanditAdminForm(forms.ModelForm):
     class Meta:
         model = Bandit
-        fields = '__all__'
+        fields = "__all__"
 
     def clean(self):
         cleaned_data = super().clean()
