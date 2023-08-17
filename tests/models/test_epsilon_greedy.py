@@ -1,3 +1,4 @@
+# TODO: Update to use pytest style (see test_epsilon_decay.py for example)
 from django.test import TestCase
 from unittest.mock import patch
 from django_bandits.models import EpsilonGreedyModel, BanditFlag, FlagUrl

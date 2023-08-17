@@ -257,6 +257,8 @@ class EpsilonGreedyModel(AbstractBanditModel):
     prob_flag = models.FloatField(default=0.5)
 
     def pull(self) -> bool:
+        if self.winning_arm is not None:
+            return bool(self.winning_arm)
         p = np.random.random()
         if p < self.epsilon:
             if DEBUG:
@@ -293,6 +295,8 @@ class EpsilonGreedyModel(AbstractBanditModel):
 
 class EpsilonDecayModel(AbstractBanditModel):
     def pull(self) -> bool:
+        if self.winning_arm is not None:
+            return bool(self.winning_arm)
         p = np.random.random()
         if p < (1 / (1 + self.get_number_of_views().sum() / self.k)):
             flag = np.random.randint(0, self.k)
@@ -320,7 +324,7 @@ class UCB1Model(AbstractBanditModel):
         flag = np.argmax(
             rewards
             + self.c
-            * np.sqrt(np.log(np.max(n_views.sum(), 1)) / np.maximum(n_views, 1))
+            * np.sqrt(np.log(np.max([n_views.sum(), 1])) / np.maximum(n_views, 1))
         )
         return bool(flag)
 

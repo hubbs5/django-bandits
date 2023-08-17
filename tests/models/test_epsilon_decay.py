@@ -6,8 +6,8 @@ from django_bandits.models import EpsilonDecayModel, BanditFlag, FlagUrl
 def setup_data(db):
     bandit_flag = BanditFlag.objects.create()
     flag_url = FlagUrl.objects.create(flag=bandit_flag)
-    eps_decay_model = EpsilonDecayModel.objects.create(flag=bandit_flag)
-    return bandit_flag, flag_url, eps_decay_model
+    model = EpsilonDecayModel.objects.create(flag=bandit_flag)
+    return bandit_flag, flag_url, model
 
 
 class TestEpsilonDecayModel:
@@ -60,3 +60,12 @@ class TestEpsilonDecayModel:
         active = eps_decay_model.pull()
         expected_output = active_flag_conversions > inactive_flag_conversions
         assert active == expected_output
+
+    @pytest.mark.parametrize("winning_arm", [0, 1])
+    def test_winning_arm(self, setup_data, winning_arm):
+        _, _, eps_decay_model = setup_data
+
+        eps_decay_model.winning_arm = winning_arm
+        eps_decay_model.save()
+        active = eps_decay_model.pull()
+        assert active == bool(winning_arm)
