@@ -1,5 +1,7 @@
 import numpy as np
+from scipy.stats import ttest_ind, norm
 from django.db import models
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.auth import get_user_model
 from django.contrib.auth import models as auth_models
@@ -9,11 +11,10 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.core.exceptions import ValidationError
 from abc import ABC, abstractmethod
 
-
 from waffle.models import Flag #as WaffleFlag
 from waffle.models import AbstractUserFlag
 
-# from .bandits import EpsilonGreedyBandit, EpsilonDecayBandit, UCB1Bandit
+DEBUG = settings.DEBUG if hasattr(settings, "DEBUG") else False
 
 BANDIT_ALGORITHMS = [
   ("EG", "Epsilon Greedy"),
@@ -38,7 +39,7 @@ class BanditFlag(AbstractUserFlag):
 
     # Try to retrieve the active bandit model
     bandit_model_instance = None
-    for related_set in [self.epsilongreedymodel_set, self.ucb1model_set]:  # Add more sets as needed
+    for related_set in [self.epsilongreedymodel_set, self.epsilondecaymodel_set, self.ucb1model_set]:  # Add more sets as needed
         bandit_model_instance = related_set.filter(is_active=True).first()
         if bandit_model_instance:
             break
@@ -124,41 +125,22 @@ class Bandit(models.Model):
         raise ValidationError("Only one bandit can be active at a time.")
     super().save(*args, **kwargs)
 
+# TODO: Deprecated, delete
 class BanditInstance(models.Model):
   # Used for Admin purposes
   flag = models.ForeignKey(BanditFlag, on_delete=models.CASCADE)
   bandit = models.OneToOneField(Bandit, on_delete=models.CASCADE)
-  
-# class Bandit(models.Model):
-#   name = models.CharField(max_length=200,
-#                           choices=BANDIT_ALGORITHMS,
-#                           default="EG")
-#   flag = models.ForeignKey(BanditFlag, on_delete=models.CASCADE)
-#   content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
-#   object_id = models.PositiveIntegerField()
-#   content_object = GenericForeignKey('content_type', 'object_id')
-#   is_active = models.BooleanField(default=False)
-#   timestamp = models.DateTimeField(auto_now_add=True)
-
-#   def save(self, *args, **kwargs):
-#     '''Ensure only one active bandit is available at a time.'''
-#     if self.is_active:
-#       active_bandits = Bandit.objects.filter(BanditFlag=self.flag, is_active=True)
-#       if self.pk:
-#         active_bandits = active_bandits.exclude(pk=self.pk)
-#       if active_bandits.exists():
-#         raise ValidationError("Only one bandit can be active at a time.")
-#     super().save(*args, **kwargs)
 
 
 class AbstractBanditModel(models.Model):
-  # bandit = models.ForeignKey(Bandit, on_delete=models.CASCADE)
   flag = models.ForeignKey(BanditFlag, related_name='%(class)s_set', 
                            on_delete=models.CASCADE, null=True, blank=True)
   is_active = models.BooleanField(default=False)
+  significance_level = models.FloatField(default=0.05)
+  min_views = models.IntegerField(default=100)
+  winning_arm = models.IntegerField(null=True, blank=True)
   
   k = 2 # Number of options
-  # TODO: Use caching to speed up the bandit algorithm
 
   class Meta:
     abstract = True
@@ -168,46 +150,102 @@ class AbstractBanditModel(models.Model):
                                 name='unique_active_bandit_%(class)s')
     ]
 
+  # def __str__(self):
+  #   return self.display_bounds()
+
   @abstractmethod
   def pull(self):
     '''Determines whether or not the flag is active 0 = False, 1 = True'''
     raise NotImplementedError("Pull method not implemented.")
 
-  @abstractmethod
-  def update(self):
-    '''Updates the bandit model'''
-    raise NotImplementedError("Update method not implemented.")
-
   def get_rewards(self):
     '''Returns the rewards for each option'''
+    rewards = self.get_number_of_conversions() / np.maximum(self.get_number_of_views(), 1)
+    return rewards
+
+  def get_number_of_views(self):
+    '''Returns the number of views for each option'''
     flag_url = self.flag.flagurl
-    inactive_rewards = flag_url.inactive_flag_conversions / max(flag_url.inactive_flag_views, 1)
-    active_rewards = flag_url.active_flag_conversions / max(flag_url.active_flag_views, 1)
-    return np.array([inactive_rewards, active_rewards])
+    return np.array([flag_url.inactive_flag_views,
+                     flag_url.active_flag_views])
+
+  def get_number_of_conversions(self):
+    '''Returns the number of conversions for each option'''
+    flag_url = self.flag.flagurl
+    return np.array([flag_url.inactive_flag_conversions,
+                     flag_url.active_flag_conversions])
     
   def save(self, *args, **kwargs):
     '''Ensure only one bandit is active at a time.'''
     if self.is_active:
-      active_bandits = type(self).objects.filter(flag=self.flag, is_active=True)
+      active_bandits = type(self).objects.filter(flag=self.flag,
+                                                 is_active=True)
       if self.pk:
         active_bandits = active_bandits.exclude(pk=self.pk)
       if active_bandits.exists():
         raise ValidationError("Only one bandit can be active at a time.")
     super().save(*args, **kwargs)
 
+  def test_arms(self):
+    '''
+    Performs a two-sample t-test on the rewards for each arm
+    '''
+    n_views = self.get_number_of_views()
+    if n_views.sum() < self.min_views:
+      return None
+
+    # Converts outcomes to list of binary outcomes for use with ttest_ind
+    n_convs = self.get_number_of_conversions()
+    outcomes_arm0 = [1] * n_convs[0] + [0] * (n_views[0] - n_convs[0])
+    outcomes_arm1 = [1] * n_convs[1] + [0] * (n_views[1] - n_convs[1])
+    
+    t, p_value = ttest_ind(outcomes_arm0, outcomes_arm1)
+    if p_value < self.significance_level:
+      self.winning_option = 0 if np.mean(outcomes_arm0) > np.mean(outcomes_arm1) else 1
+      self.save()
+
+  def get_confidence_intervals(self, arm: int) -> tuple:
+    '''Gets upper and lower bounds for the given arm'''
+    n_views = self.get_number_of_views()[arm]
+    n_convs = self.get_number_of_conversions()[arm]
+    alpha = 1 - self.significance_level
+    prop = n_convs / n_views
+    z = norm.ppf(1 - alpha / 2)
+    error = z * np.sqrt(prop * (1 - prop) / n_views)
+    return prop - error, prop + error
+
+  def get_inactive_flag_confidence_intervals(self) -> str:
+    low, up = self.get_confidence_intervals(0)
+    return f"{low:.2f} - {up:.2f}"
+
+  def get_active_flag_confidence_intervals(self) -> str:
+    low, up = self.get_confidence_intervals(1)
+    return f"{low:.2f} - {up:.2f}"
+
+  def display_confidence_intervals(self):
+    inactive = self.get_inactive_flag_confidence_intervals()
+    active = self.get_active_flag_confidence_intervals()
+    return f"Active Flag:\t{active}\nInactive Flag:\t{inactive}"
+
+  def display_conversion_rate(self):
+    rewards = self.get_rewards()
+    return f"Active Flag:\t{rewards[1]:.2%}\nInactive Flag:\t{rewards[0]:.2%}"
+
 class EpsilonGreedyModel(AbstractBanditModel):
   epsilon = models.FloatField(default=0.1)
   prob_flag = models.FloatField(default=0.5)
 
-  def pull(self):
+  def pull(self) -> bool:
     p = np.random.random()
     if p < self.epsilon:
-      print("Making random choice")
+      if DEBUG:
+        print("Making random choice")
       flag = np.random.randint(0, self.k)
     else:
       rewards = self.get_rewards()
-      print("Making greedy choice")
-      print(f"Rewards: {rewards}")
+      if DEBUG:
+        print("Making greedy choice")
+        print(f"Rewards: {rewards}")
       if rewards[0] == rewards[1]:
         flag = np.random.randint(0, self.k)
       else:
@@ -219,6 +257,8 @@ class EpsilonGreedyModel(AbstractBanditModel):
   def update(self):
     '''
     Updates probability of flag vs. no flag and any other stats
+
+    TODO: Move this to be calculated on admin page 
     '''
     rewards = self.get_rewards()
     if rewards[0] == rewards[1]:
@@ -232,8 +272,34 @@ class EpsilonGreedyModel(AbstractBanditModel):
       
 
 class EpsilonDecayModel(AbstractBanditModel):
-  beta = models.FloatField(default=0.99)
 
+  def pull(self) -> bool:
+    p = np.random.random()
+    if p < (1 / (1 + self.get_number_of_views().sum() / self.k)):
+      flag = np.random.randint(0, self.k)
+    else:
+      rewards = self.get_rewards()
+      if rewards[0] == rewards[1]:
+        flag = np.random.randint(0, self.k)
+      else:
+        flag = np.argmax(rewards)
+
+    return bool(flag)
 
 class UCB1Model(AbstractBanditModel):
   c = models.FloatField(default=2.0)
+  
+  def pull(self) -> bool:
+    '''
+    Pulls the arm with the highest upper confidence bound
+    '''
+    if self.winning_arm is not None:
+      return bool(self.winning_arm)
+    rewards = self.get_rewards()
+    n_views = self.get_number_of_views()
+    flag = np.argmax(rewards + self.c * np.sqrt(
+      np.log(np.max(n_views.sum(), 1)) / np.maximum(n_views, 1)))
+    return bool(flag)
+      
+  def update(self):
+    self.test_arms()

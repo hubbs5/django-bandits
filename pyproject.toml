@@ -17,10 +17,11 @@ classifiers = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = ">=3.9,<3.13"
 numpy = "^1.25.2"
 django-waffle = "^4.0.0"
 django = "^4.2.4"
+scipy = "^1.11.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"

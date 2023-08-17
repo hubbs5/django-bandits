@@ -13,7 +13,17 @@ This is in alpha mode and **NO TESTS** are currently active! If you'd like to co
 
 Not yet active...getting to it soon...
 
-Add to `MIDDLEWARE` after CSRF and Authentication, e.g.:
+Go to your `settings.py` file and add `waffle` to your installed apps list:
+```
+INSTALLED_APPS = [
+    ...
+    "waffle",
+    "django_bandits",
+    ...
+]
+```
+
+Additionally, add `django_bandits.middleware.UserActivityMiddleware` to `MIDDLEWARE` after CSRF and authentication middleware, e.g.:
 
 ```
 MIDDLEWARE = [
@@ -30,14 +40,38 @@ Update `settings.py` to exclude any particular URL from conversion tracking, e.g
 ```
 EXCLUDE_FROM_TRACKING = [
     ADMIN_URL,
-    "/static/",
 ]
+```
+
+Finally add the following line to your `settings.py` file to ensure the bandit model is overriding Waffle's Flags.
+```
+WAFFLE_FLAG_MODEL = "django_bandits.BanditFlag"
 ```
 
 ### Migrations
 
+Create migrations by running `python manage.py makemigrations` followed by `python manage.py migrate`.
 
 ### Enabling Bandits
+
+With migrations complete, go to the Django site admin page. You should see something like this:
+
+![View of Django admin page](docs/images/django_admin_bandit_1.png)
+
+Select `Flags` under `DJANGO_BANDITS` and click "Add."
+
+Make a name for the flag - typically the feature you want to test. Set it to test for whatever group you'd like to test it on. Refer to the [Waffle documentation](https://waffle.readthedocs.io/en/stable/) for details.
+
+The bandit needs a `FLAG URL` to be set - this is the URL where the flag will be shown to users and is needed to track conversions and call the bandit to flip the feature when users reach that URL. Enter this as the `Source URL`.
+
+To track a conversion, then you need to add a `Target URL`, which is where you want the user to end up.
+
+In the example below, we're tracking the homepage (`/`) and want to see how many users click on a link to go to the contact page (`/contact/`).
+
+![FLAG URL settings determines a successful conversion](docs/images/django_admin_bandit_flag_url.png)
+
+This will consider any user who views your source URL and target URL to be a conversion during the session and will update the count shown in the image above.
+
 
 
 ### Performance Tracking
