@@ -11,7 +11,14 @@ This is in alpha mode and **NO TESTS** are currently active! If you'd like to co
 
 ~~Install with: `pip install django-bandits`~~
 
-Not yet active...getting to it soon...
+Not yet active...getting to it soon...In the meantime, you can install directly from this repo.
+### Poetry
+`poetry add git+https://github.com/hubbs5/django-bandits.git`
+
+### Pip
+`pip install git+https://github.com/hubbs5/django-bandits.git`
+
+### Django Settings
 
 Go to your `settings.py` file and add `waffle` to your installed apps list:
 ```
@@ -72,6 +79,37 @@ In the example below, we're tracking the homepage (`/`) and want to see how many
 
 This will consider any user who views your source URL and target URL to be a conversion during the session and will update the count shown in the image above.
 
+To add a bandit, you'll need to select one of the bandit options from the list below:
+![Select from Epsilon Greedy, Epsilon Decay, or UCB1 Bandits](bandit-selection.png)
 
+Some bandits have customizable parameters (e.g. how frequently a random action is taken such as $\epsilon$). All allow you to set a minimum number of views and confidence interval before a winning version is selected (see more details below).
+
+Now that a bandit is enabled, you need to update your templates or views in as done with Waffle to enable the feature flipping flag.
+
+In a template, it may be something like this:
+
+```
+{% extends "base.html" %}
+{% load waffle_tags %}
+
+{% block content %}
+{% flag "headline-flag" %}
+    <h1>This is my test headline: Waffle Flag is <strong>active</strong></h1>
+{% else %}
+    <h1>This is my base headline: Waffle Flag is <strong>inactive</strong></h1>
+{% endflag %}
+    <a href="{% url 'ab_test:target' %}">Click here to see the target page</a>
+{% endblock %}
+```
+
+Where "`headline-flag`" is the name of the flag you defined in the admin page.
 
 ### Performance Tracking
+
+The bandits will automatically select a winning option when the given criteria are met. When setting up a bandit, you can select the `SIGNIFICANCE LEVEL`(default is 0.05) and the `MIN VIEWS` (default is 100). 
+
+After the `MIN VIEWS` threshold is reached, the model will perform a two-sided t-test to determine if there's significant difference in the two options (i.e. p-value < `SIGNIFICANCE LEVEL`). If this criteria is met, the bandit will then default to the winning option for all future visits to avoid potential conversion losses from testing.
+
+As a user, you can also view the conversion rate and the upper and lower bounds of the confidence intervals at any time within the admin page.
+
+![A view of the bandit stats](docs/images/bandit-stats.png)
