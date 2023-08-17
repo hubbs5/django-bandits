@@ -158,11 +158,6 @@ class AbstractBanditModel(models.Model):
     '''Determines whether or not the flag is active 0 = False, 1 = True'''
     raise NotImplementedError("Pull method not implemented.")
 
-  @abstractmethod
-  def update(self):
-    '''Updates the bandit model'''
-    raise NotImplementedError("Update method not implemented.")
-
   def get_rewards(self):
     '''Returns the rewards for each option'''
     rewards = self.get_number_of_conversions() / np.maximum(self.get_number_of_views(), 1)
@@ -262,6 +257,8 @@ class EpsilonGreedyModel(AbstractBanditModel):
   def update(self):
     '''
     Updates probability of flag vs. no flag and any other stats
+
+    TODO: Move this to be calculated on admin page 
     '''
     rewards = self.get_rewards()
     if rewards[0] == rewards[1]:
@@ -275,8 +272,19 @@ class EpsilonGreedyModel(AbstractBanditModel):
       
 
 class EpsilonDecayModel(AbstractBanditModel):
-  beta = models.FloatField(default=0.99)
 
+  def pull(self) -> bool:
+    p = np.random.random()
+    if p < (1 / (1 + self.get_number_of_views().sum() / self.k)):
+      flag = np.random.randint(0, self.k)
+    else:
+      rewards = self.get_rewards()
+      if rewards[0] == rewards[1]:
+        flag = np.random.randint(0, self.k)
+      else:
+        flag = np.argmax(rewards)
+
+    return bool(flag)
 
 class UCB1Model(AbstractBanditModel):
   c = models.FloatField(default=2.0)

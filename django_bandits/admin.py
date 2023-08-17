@@ -41,8 +41,6 @@ class BaseBanditInline(admin.TabularInline):
 
 class EpsilonDecayModelInline(BaseBanditInline):
   model = EpsilonDecayModel
-  new_fields = ["beta"]
-  new_field_positions = [1]
 
 
 class EpsilonGreedyModelInline(BaseBanditInline):

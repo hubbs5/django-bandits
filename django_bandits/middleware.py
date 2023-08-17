@@ -73,13 +73,13 @@ class UserActivityMiddleware:
             else:
               flag_url.inactive_flag_conversions += 1
             flag_url.save()
-            # Update bandit stats for display in admin
-            for related_set in [flag.epsilongreedymodel_set, flag.epsilondecaymodel_set, flag.ucb1model_set]:
-              bandit_model_instance = related_set.filter(is_active=True).first()
-              if bandit_model_instance:
-                bandit_model_instance.update()
-                bandit_model_instance.save()
-                break
+            # Update bandit stats for display in admin: Move to admin so updates when Admin views it
+            # for related_set in [flag.epsilongreedymodel_set, flag.epsilondecaymodel_set, flag.ucb1model_set]:
+            #   bandit_model_instance = related_set.filter(is_active=True).first()
+            #   if bandit_model_instance:
+            #     bandit_model_instance.update()
+            #     bandit_model_instance.save()
+            #     break
               
     response = self.get_response(request)
 
