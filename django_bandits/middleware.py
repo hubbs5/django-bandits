@@ -8,6 +8,7 @@ import waffle
 
 DEBUG = settings.DEBUG if hasattr(settings, "DEBUG") else False
 
+
 class UserActivityMiddleware:
     # TODO: Exclude 404 pages
     exclude = (
@@ -19,7 +20,6 @@ class UserActivityMiddleware:
 
     def __init__(self, get_response):
         self.get_response = get_response
-
 
     def flag_is_active(self, request, flag_name):
         """
@@ -98,10 +98,16 @@ class UserActivityMiddleware:
                             flag_url.inactive_flag_conversions += 1
 
                         flag_url.save()
-                        
+
                         # Update bandit stats
-                        for related_set in [flag.epsilongreedymodel_set, flag.epsilondecaymodel_set, flag.ucb1model_set]:
-                            bandit_model_instance = related_set.filter(is_active=True).first()
+                        for related_set in [
+                            flag.epsilongreedymodel_set,
+                            flag.epsilondecaymodel_set,
+                            flag.ucb1model_set,
+                        ]:
+                            bandit_model_instance = related_set.filter(
+                                is_active=True
+                            ).first()
                             if bandit_model_instance:
                                 bandit_model_instance.test_arms()
                                 break

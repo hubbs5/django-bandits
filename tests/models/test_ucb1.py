@@ -9,8 +9,8 @@ def setup_data(db):
     model = UCB1Model.objects.create(flag=bandit_flag)
     return bandit_flag, flag_url, model
 
-class TestUCB1Model:
 
+class TestUCB1Model:
     @pytest.mark.parametrize("winning_arm", [0, 1])
     def test_winning_arm(self, setup_data, winning_arm):
         _, _, ucb1_model = setup_data
@@ -20,8 +20,12 @@ class TestUCB1Model:
         active = ucb1_model.pull()
         assert active == bool(winning_arm)
 
-    @pytest.mark.parametrize("active_flag_conversions, inactive_flag_conversions", [(10, 50), (50, 10)])
-    def test_exploitation(self, setup_data, active_flag_conversions, inactive_flag_conversions):
+    @pytest.mark.parametrize(
+        "active_flag_conversions, inactive_flag_conversions", [(10, 50), (50, 10)]
+    )
+    def test_exploitation(
+        self, setup_data, active_flag_conversions, inactive_flag_conversions
+    ):
         _, flag_url, ucb1_model = setup_data
 
         flag_url.active_flag_views = 100

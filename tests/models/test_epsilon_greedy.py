@@ -1,6 +1,7 @@
 import pytest
 from django_bandits.models import EpsilonGreedyModel, BanditFlag, FlagUrl
 
+
 @pytest.fixture
 def setup_data(db):
     bandit_flag = BanditFlag.objects.create()
@@ -8,8 +9,8 @@ def setup_data(db):
     model = EpsilonGreedyModel.objects.create(flag=bandit_flag, epsilon=0.1)
     return bandit_flag, flag_url, model
 
-class TestEpsilonGreedyModel:
 
+class TestEpsilonGreedyModel:
     @pytest.mark.parametrize("randint_return, expected_output", [(0, False), (1, True)])
     def test_pull_random_choice(
         self, setup_data, mocker, randint_return, expected_output
