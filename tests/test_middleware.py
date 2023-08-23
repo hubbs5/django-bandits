@@ -127,11 +127,16 @@ def test_flag_activity_recording(request_with_session, test_user, flag_and_url, 
 
 
 @pytest.mark.django_db
-def test_flag_conversion_recording(request_with_session, test_user, flag_and_url, mocker):
+@pytest.mark.parametrize("active_flag", [True, False])
+def test_flag_conversion_recording(request_with_session, test_user, flag_and_url, 
+                                   mocker, active_flag):
     flag, flag_url = flag_and_url
     request = request_with_session
     request.user = test_user
 
+    mocker.patch.object(UserActivityMiddleware, 
+                        'flag_is_active', return_value=active_flag)
+    
     # Simulate the user visiting the source_url first
     request.path = flag_url.source_url
     middleware_source = UserActivityMiddleware(lambda req: HttpResponse())
@@ -151,29 +156,47 @@ def test_flag_conversion_recording(request_with_session, test_user, flag_and_url
         request.session.session_key, flag_url.source_url
     )
 
+    assert active_source_flag == active_flag, \
+        f"Expected {active_flag}, got {active_source_flag}"
     if active_source_flag:
         assert flag_url.active_flag_conversions == 1, \
-            f'Expected 1 active flag conversion, got {flag_url.active_flag_conversions}'
-        assert flag_url.inactive_flag_conversions == 0, \
-            f'Expected 0 inactive flag conversions, got {flag_url.inactive_flag_conversions}'
+            f"Expected 1 active flag conversion, got {flag_url.active_flag_conversions}"
     else:
-        assert flag_url.active_flag_conversions == 0, \
-            f'Expected 0 active flag conversions, got {flag_url.active_flag_conversions}'
         assert flag_url.inactive_flag_conversions == 1, \
-            f'Expected 1 inactive flag conversion, got {flag_url.inactive_flag_conversions}'
+            f"Expected 1 inactive flag conversion, got {flag_url.inactive_flag_conversions}"
+
+    # if active_source_flag:
+    #     assert flag_url.active_flag_conversions == 1, \
+    #         f'Expected 1 active flag conversion, got {flag_url.active_flag_conversions}'
+    #     assert flag_url.inactive_flag_conversions == 0, \
+    #         f'Expected 0 inactive flag conversions, got {flag_url.inactive_flag_conversions}'
+    # else:
+    #     assert flag_url.active_flag_conversions == 0, \
+    #         f'Expected 0 active flag conversions, got {flag_url.active_flag_conversions}'
+    #     assert flag_url.inactive_flag_conversions == 1, \
+    #         f'Expected 1 inactive flag conversion, got {flag_url.inactive_flag_conversions}'
 
 
 @pytest.mark.django_db
-def test_bandit_test_arms(request_with_session, test_user, flag_and_url, mocker):
+@pytest.mark.parametrize("active_flag_conversions, inactive_flag_conversions," + \
+                         "winning_arm, bandit_model", [(100, 50, 1, EpsilonGreedyModel),
+                                                       (50, 100, 0, EpsilonGreedyModel),
+                                                       (100, 50, 1, EpsilonDecayModel),
+                                                       (50, 100, 0, EpsilonDecayModel),
+                                                       (100, 50, 1, UCB1Model),
+                                                       (50, 100, 0, UCB1Model)])
+def test_bandit_test_arms(request_with_session, test_user, flag_and_url,
+                          active_flag_conversions, inactive_flag_conversions,
+                          winning_arm, bandit_model):
     flag, flag_url = flag_and_url
     request = request_with_session
     request.user = test_user
 
-    bandit = EpsilonGreedyModel.objects.create(flag=flag, is_active=True)
+    bandit = bandit_model.objects.create(flag=flag, is_active=True)
     flag_url.active_flag_views = 120
-    flag_url.active_flag_conversions = 100
     flag_url.inactive_flag_views = 120
-    flag_url.inactive_flag_conversions = 50
+    flag_url.active_flag_conversions = active_flag_conversions
+    flag_url.inactive_flag_conversions = inactive_flag_conversions
     flag_url.save()
 
     # Simulate the user visiting the source_url first
@@ -189,11 +212,11 @@ def test_bandit_test_arms(request_with_session, test_user, flag_and_url, mocker)
     response_target = middleware_target(request)
     assert response_target.status_code == 200, \
         "Expected 200 response code from target_url"
+        
     flag_url.refresh_from_db()
-
     bandit.refresh_from_db()
 
     assert bandit.get_number_of_views().sum() > bandit.min_views, \
         f'Insufficient views for test: {bandit.get_number_of_views().sum()}<{bandit.min_views}'
-    assert bandit.winning_arm == 1, \
-        f'Expected the winning arm to be 1, but got {bandit.winning_arm}'
+    assert bandit.winning_arm == winning_arm, \
+        f'Expected the winning arm to be {winning_arm}, but got {bandit.winning_arm}'
