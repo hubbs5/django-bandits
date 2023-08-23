@@ -2,11 +2,9 @@ import numpy as np
 from scipy.stats import ttest_ind, norm
 from django.db import models
 from django.conf import settings
-from django.contrib.auth.models import User
 from django.contrib.auth import get_user_model
 from django.contrib.auth import models as auth_models
 from django.contrib.contenttypes.models import ContentType
-from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.core.exceptions import ValidationError
 from abc import ABC, abstractmethod
@@ -95,7 +93,8 @@ class FlagUrl(URLSanitizationMixin, models.Model):
 
 
 class UserActivity(URLSanitizationMixin, models.Model):
-    user = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL,
+                             null=True, on_delete=models.SET_NULL)
     session_key = models.CharField(max_length=40, null=True)
     url = models.URLField()
     target_url_visit = models.BooleanField(default=False)
