@@ -7,10 +7,6 @@ from .models import BanditFlag
 import waffle
 
 DEBUG = settings.DEBUG if hasattr(settings, "DEBUG") else False
-DEBUG = True
-
-logging.basicConfig(title="UserActivityMiddleware", level=logging.INFO,
-                    format="%(time)s %(message)s")
 
 class UserActivityMiddleware:
     # TODO: Exclude 404 pages
@@ -43,7 +39,6 @@ class UserActivityMiddleware:
 
         # If the user is authenticated, add their user instance to the UserActivity
         if request.user.is_authenticated:
-            
             user_activity = UserActivity.objects.create(
                 user=request.user,
                 is_staff=request.user.is_staff,
@@ -62,10 +57,10 @@ class UserActivityMiddleware:
                 if current_url == flag_url.source_url:
                     # is_flag_active determines whether or not the user sees the feature
                     is_flag_active = self.flag_is_active(request, flag.name)
-                    if DEBUG:
-                        print(
-                            f"Checking flag {flag.name} for user {request.user}\nFlag URL: {flag_url.source_url}\nFlag is active: {is_flag_active}"
-                        )
+                    # if DEBUG:
+                    #     print(
+                    #         f"Checking flag {flag.name} for user {request.user}\nFlag URL: {flag_url.source_url}\nFlag is active: {is_flag_active}"
+                    #     )
                     if is_flag_active is not None:
                         ua_flag = UserActivityFlag.objects.create(
                             user_activity=user_activity,
@@ -93,22 +88,23 @@ class UserActivityMiddleware:
                         )
                         # TODO: Update to handle cases where users didn't see the particular
                         # landing page or feature flag at all
-                        if DEBUG:
-                            print(
-                                f"User reached target URL {flag_url.target_url}\nActive source flag: {active_source_flag}"
-                            )
+                        # if DEBUG:
+                        #     print(
+                        #         f"User reached target URL {flag_url.target_url}\nActive source flag: {active_source_flag}"
+                        #     )
                         if active_source_flag:
                             flag_url.active_flag_conversions += 1
                         else:
                             flag_url.inactive_flag_conversions += 1
+
                         flag_url.save()
-                        # Update bandit stats for display in admin: Move to admin so updates when Admin views it
-                        # for related_set in [flag.epsilongreedymodel_set, flag.epsilondecaymodel_set, flag.ucb1model_set]:
-                        #   bandit_model_instance = related_set.filter(is_active=True).first()
-                        #   if bandit_model_instance:
-                        #     bandit_model_instance.update()
-                        #     bandit_model_instance.save()
-                        #     break
+                        
+                        # Update bandit stats
+                        for related_set in [flag.epsilongreedymodel_set, flag.epsilondecaymodel_set, flag.ucb1model_set]:
+                            bandit_model_instance = related_set.filter(is_active=True).first()
+                            if bandit_model_instance:
+                                bandit_model_instance.test_arms()
+                                break
 
         response = self.get_response(request)
 
