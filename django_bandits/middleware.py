@@ -1,12 +1,12 @@
+import logging
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse
 from .models import UserActivity, FlagUrl, UserActivityFlag
 from .models import BanditFlag
 
-from waffle import flag_is_active
+import waffle
 
 DEBUG = settings.DEBUG if hasattr(settings, "DEBUG") else False
-
 
 class UserActivityMiddleware:
     # TODO: Exclude 404 pages
@@ -19,6 +19,16 @@ class UserActivityMiddleware:
 
     def __init__(self, get_response):
         self.get_response = get_response
+
+
+    def flag_is_active(self, request, flag_name):
+        """
+        Returns whether or not a flag is active for a given request
+
+        This is a wrapper around waffle.flag_is_active that allows us to mock
+        for testing purposes.
+        """
+        return waffle.flag_is_active(request, flag_name)
 
     def __call__(self, request: HttpRequest) -> HttpResponse:
         session_key = request.session.session_key
@@ -46,11 +56,11 @@ class UserActivityMiddleware:
             if flag_url:
                 if current_url == flag_url.source_url:
                     # is_flag_active determines whether or not the user sees the feature
-                    is_flag_active = flag_is_active(request, flag.name)
-                    if DEBUG:
-                        print(
-                            f"Checking flag {flag.name} for user {request.user}\nFlag URL: {flag_url.source_url}\nFlag is active: {is_flag_active}"
-                        )
+                    is_flag_active = self.flag_is_active(request, flag.name)
+                    # if DEBUG:
+                    #     print(
+                    #         f"Checking flag {flag.name} for user {request.user}\nFlag URL: {flag_url.source_url}\nFlag is active: {is_flag_active}"
+                    #     )
                     if is_flag_active is not None:
                         ua_flag = UserActivityFlag.objects.create(
                             user_activity=user_activity,
@@ -78,22 +88,23 @@ class UserActivityMiddleware:
                         )
                         # TODO: Update to handle cases where users didn't see the particular
                         # landing page or feature flag at all
-                        if DEBUG:
-                            print(
-                                f"User reached target URL {flag_url.target_url}\nActive source flag: {active_source_flag}"
-                            )
+                        # if DEBUG:
+                        #     print(
+                        #         f"User reached target URL {flag_url.target_url}\nActive source flag: {active_source_flag}"
+                        #     )
                         if active_source_flag:
                             flag_url.active_flag_conversions += 1
                         else:
                             flag_url.inactive_flag_conversions += 1
+
                         flag_url.save()
-                        # Update bandit stats for display in admin: Move to admin so updates when Admin views it
-                        # for related_set in [flag.epsilongreedymodel_set, flag.epsilondecaymodel_set, flag.ucb1model_set]:
-                        #   bandit_model_instance = related_set.filter(is_active=True).first()
-                        #   if bandit_model_instance:
-                        #     bandit_model_instance.update()
-                        #     bandit_model_instance.save()
-                        #     break
+                        
+                        # Update bandit stats
+                        for related_set in [flag.epsilongreedymodel_set, flag.epsilondecaymodel_set, flag.ucb1model_set]:
+                            bandit_model_instance = related_set.filter(is_active=True).first()
+                            if bandit_model_instance:
+                                bandit_model_instance.test_arms()
+                                break
 
         response = self.get_response(request)
 

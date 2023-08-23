@@ -214,13 +214,13 @@ class AbstractBanditModel(models.Model):
 
         # Converts outcomes to list of binary outcomes for use with ttest_ind
         n_convs = self.get_number_of_conversions()
-        outcomes_arm0 = [1] * n_convs[0] + [0] * (n_views[0] - n_convs[0])
-        outcomes_arm1 = [1] * n_convs[1] + [0] * (n_views[1] - n_convs[1])
+        inactive_results = [1] * n_convs[0] + [0] * (n_views[0] - n_convs[0])
+        active_results = [1] * n_convs[1] + [0] * (n_views[1] - n_convs[1])
 
-        t, p_value = ttest_ind(outcomes_arm0, outcomes_arm1)
+        t, p_value = ttest_ind(inactive_results, active_results)
         if p_value < self.significance_level:
-            self.winning_option = (
-                0 if np.mean(outcomes_arm0) > np.mean(outcomes_arm1) else 1
+            self.winning_arm = (
+                0 if np.mean(inactive_results) > np.mean(active_results) else 1
             )
             self.save()
 
@@ -327,6 +327,3 @@ class UCB1Model(AbstractBanditModel):
             * np.sqrt(np.log(np.max([n_views.sum(), 1])) / np.maximum(n_views, 1))
         )
         return bool(flag)
-
-    def update(self):
-        self.test_arms()

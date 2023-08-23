@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "django-bandits"
-version = "0.1.1"
+version = "0.1.2"
 description = "A package enabling multi-armed bandits for site optimization and Django."
 authors = ["Christian <christiandhubbs@gmail.com>"]
 license = "Apache 2.0"
