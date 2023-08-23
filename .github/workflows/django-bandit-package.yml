@@ -11,7 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.9', '3.10', '3.11']
+        python-version: ['3.8', '3.9', '3.10', '3.11']
+        django-version: ['3.0', '4.0', 'latest']
 
     steps:
     - uses: actions/checkout@v3
@@ -25,7 +26,13 @@ jobs:
         virtualenvs-create: true
         virtualenvs-in-project: true
     - name: Install dependencies
-      run: poetry install
+      run: |
+        poetry install
+        if [[ "${{ matrix.django-version }}" == "latest" ]]; then
+          poetry add django
+        else
+          poetry add django==${{ matrix.django-version }}
+        fi
     - name: Check code formatting with Black
       run: poetry run black --check .
     - name: Test with pytest
