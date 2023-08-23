@@ -1,12 +1,16 @@
+import logging
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse
 from .models import UserActivity, FlagUrl, UserActivityFlag
 from .models import BanditFlag
 
-from waffle import flag_is_active
+import waffle
 
 DEBUG = settings.DEBUG if hasattr(settings, "DEBUG") else False
+DEBUG = True
 
+logging.basicConfig(title="UserActivityMiddleware", level=logging.INFO,
+                    format="%(time)s %(message)s")
 
 class UserActivityMiddleware:
     # TODO: Exclude 404 pages
@@ -20,6 +24,16 @@ class UserActivityMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
 
+
+    def flag_is_active(self, request, flag_name):
+        """
+        Returns whether or not a flag is active for a given request
+
+        This is a wrapper around waffle.flag_is_active that allows us to mock
+        for testing purposes.
+        """
+        return waffle.flag_is_active(request, flag_name)
+
     def __call__(self, request: HttpRequest) -> HttpResponse:
         session_key = request.session.session_key
         current_url = request.path
@@ -29,6 +43,7 @@ class UserActivityMiddleware:
 
         # If the user is authenticated, add their user instance to the UserActivity
         if request.user.is_authenticated:
+            
             user_activity = UserActivity.objects.create(
                 user=request.user,
                 is_staff=request.user.is_staff,
@@ -46,7 +61,7 @@ class UserActivityMiddleware:
             if flag_url:
                 if current_url == flag_url.source_url:
                     # is_flag_active determines whether or not the user sees the feature
-                    is_flag_active = flag_is_active(request, flag.name)
+                    is_flag_active = self.flag_is_active(request, flag.name)
                     if DEBUG:
                         print(
                             f"Checking flag {flag.name} for user {request.user}\nFlag URL: {flag_url.source_url}\nFlag is active: {is_flag_active}"
