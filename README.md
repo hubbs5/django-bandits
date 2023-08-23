@@ -6,14 +6,18 @@ This package extends [Django-Waffle](https://waffle.readthedocs.io/en/stable/) b
 
 ## Installation
 
-~~Install with: `pip install django-bandits`~~
+`pip install django-bandits`
 
-Not yet active...getting to it soon...In the meantime, you can install directly from this repo.
-### Poetry
-`poetry add git+https://github.com/hubbs5/django-bandits.git`
+or 
+
+`poetry add django-bandits`
+
+Additionally, you can install it directly from GitHub:
 
 ### Pip
 `pip install git+https://github.com/hubbs5/django-bandits.git`
+### Poetry
+`poetry add git+https://github.com/hubbs5/django-bandits.git`
 
 ### Django Settings
 
