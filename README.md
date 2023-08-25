@@ -51,6 +51,11 @@ EXCLUDE_FROM_TRACKING = [
 ]
 ```
 
+Additionally, you can add a REGEX option to filter URLs. Helps to ensure you aren't picking up bot traffic that's trying to break into a Wordpress site or something of the sort.
+```
+EXCLUDE_FROM_TRACKING_REGEX = r"\.php|wordpress|\/wp-"
+```
+
 Finally add the following line to your `settings.py` file to ensure the bandit model is overriding Waffle's Flags.
 ```
 WAFFLE_FLAG_MODEL = "django_bandits.BanditFlag"
