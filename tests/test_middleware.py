@@ -1,5 +1,6 @@
 import pytest
 from django.db import transaction
+from django.conf import settings
 from django.http import HttpResponse
 from django.test import RequestFactory
 from django.contrib.auth.models import AnonymousUser, User
@@ -48,7 +49,7 @@ def flag_and_url(db):
     return flag, flag_url
 
 
-# TODO: To reduce reduncanct code
+# TODO: To reduce redundant code
 @pytest.mark.django_db
 def test_basic_middleware_call(request_with_session):
     request = request_with_session
@@ -183,17 +184,6 @@ def test_flag_conversion_recording(
             flag_url.inactive_flag_conversions == 1
         ), f"Expected 1 inactive flag conversion, got {flag_url.inactive_flag_conversions}"
 
-    # if active_source_flag:
-    #     assert flag_url.active_flag_conversions == 1, \
-    #         f'Expected 1 active flag conversion, got {flag_url.active_flag_conversions}'
-    #     assert flag_url.inactive_flag_conversions == 0, \
-    #         f'Expected 0 inactive flag conversions, got {flag_url.inactive_flag_conversions}'
-    # else:
-    #     assert flag_url.active_flag_conversions == 0, \
-    #         f'Expected 0 active flag conversions, got {flag_url.active_flag_conversions}'
-    #     assert flag_url.inactive_flag_conversions == 1, \
-    #         f'Expected 1 inactive flag conversion, got {flag_url.inactive_flag_conversions}'
-
 
 @pytest.mark.django_db
 @pytest.mark.parametrize(
@@ -252,3 +242,40 @@ def test_bandit_test_arms(
     assert (
         bandit.winning_arm == winning_arm
     ), f"Expected the winning arm to be {winning_arm}, but got {bandit.winning_arm}"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "path, regex, should_create",
+    [
+        ("/admin", "", False),  # Should not be created based on settings
+        ("/some_php_page.php", r"\.php", False),  # Should not be created based on .php
+        (
+            "/some_wordpress_page",
+            r"wordpress",
+            False,
+        ),  # Should not be created based on 'wordpress'
+        ("/wp-login", r"\/wp-", False),  # Should not be created based on 'wp-'
+        ("/normal_page", r"\.php|wordpress|\/wp-", True),  # Should be created
+        ("/xmlrpc.php/", r"\.php|wordpress|\/wp-", False),
+        ("/visit-page/", r"", True),
+    ],
+)
+def test_url_exclusion(request_with_session, test_user, path, regex, should_create):
+    """Tests to see if URLs on the excluded list or in regex result in the creation of UserActivity objects or not."""
+    request = request_with_session
+    request.user = test_user
+    request.path = path
+
+    settings.EXCLUDE_FROM_TRACKING_REGEX = regex
+
+    middleware = UserActivityMiddleware(lambda req: HttpResponse())
+    response = middleware(request)
+
+    assert response.status_code == 200
+
+    exists = UserActivity.objects.filter(url__in=[path, path + "/"]).exists()
+
+    assert (
+        exists is should_create
+    ), f"Unexpected UserActivity creation for {path}. Exists = {exists}"

@@ -1,4 +1,4 @@
-import logging
+import re
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse
 from .models import UserActivity, FlagUrl, UserActivityFlag
@@ -17,6 +17,11 @@ class UserActivityMiddleware:
         else ["/admin"]
     )
     exclude = [path if path.startswith("/") else "/" + path for path in exclude]
+    exclude_regex = (
+        settings.EXCLUDE_FROM_TRACKING_REGEX
+        if hasattr(settings, "EXCLUDE_FROM_TRACKING_REGEX")
+        else ""
+    )
 
     def __init__(self, get_response):
         self.get_response = get_response
@@ -30,11 +35,27 @@ class UserActivityMiddleware:
         """
         return waffle.flag_is_active(request, flag_name)
 
+    def check_exclusion(self, current_url):
+        # Dynamic loading of settings for debugging
+        if DEBUG:
+            exclude = getattr(settings, "EXCLUDE_FROM_TRACKING", ["/admin"])
+            self.exclude = [
+                path if path.startswith("/") else "/" + path for path in exclude
+            ]
+            self.exclude_regex = getattr(settings, "EXCLUDE_FROM_TRACKING_REGEX", "")
+        if any(current_url.startswith(path) for path in self.exclude):
+            print(f"{current_url} excluded by exclusion path: {self.exclude}")
+            return True
+        if self.exclude_regex and re.search(self.exclude_regex, current_url):
+            print(f"{current_url} excluded by regex: {self.exclude_regex}")
+            return True
+        return False
+
     def __call__(self, request: HttpRequest) -> HttpResponse:
         session_key = request.session.session_key
         current_url = request.path
 
-        if any(current_url.startswith(path) for path in self.exclude):
+        if self.check_exclusion(current_url):
             return self.get_response(request)
 
         # If the user is authenticated, add their user instance to the UserActivity

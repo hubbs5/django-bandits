@@ -1,5 +1,7 @@
 # Settings to run tests for django-bandits
 
+DEBUG = True
+
 SECRET_KEY = "totally-non-fake-secret-key-for-testing"
 
 INSTALLED_APPS = [
@@ -31,3 +33,5 @@ DATABASES = {
 TEST_RUNNER = "pytest_django.runner.DjangoPytestTestRunner"
 WAFFLE_FLAG_MODEL = "django_bandits.BanditFlag"
 USE_TZ = True  # Set to true to avoid django 5.0 warning
+
+EXCLUDE_FROM_TRACKING = ["/admin"]
