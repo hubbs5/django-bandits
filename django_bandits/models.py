@@ -28,9 +28,11 @@ class BanditFlag(AbstractUserFlag):
     )
     object_id = models.PositiveIntegerField(null=True, blank=True)
     content_object = GenericForeignKey("content_type", "object_id")
+    ignore_for_authenticated_users = models.BooleanField(
+        default=False,
+        help_text="If checked, the flag will not be active for authenticated users and no stats will be recorded.")
 
     def is_active_for_user(self, user):
-        # TODO: Update to reflect the new bandit model
         User = get_user_model()
         if not user:
             try:
