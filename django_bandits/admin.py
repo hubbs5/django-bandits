@@ -109,6 +109,7 @@ class UserActivityAdmin(admin.ModelAdmin):
     ]
     readonly_fields = ["timestamp"]
     list_display = ["user", "is_staff", "session_key", "url", "timestamp"]
+    search_fields = ["user__username", "session_key", "url", "is_staff"]
 
 
 # Unregister the original Flag admin form provided by Django Waffle
