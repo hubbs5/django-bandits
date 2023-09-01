@@ -36,8 +36,9 @@ def request_with_session(request_factory, **kwargs):
 
 @pytest.mark.django_db(transaction=True)
 @pytest.fixture
-def request_without_session(request_factory):
-    request = request_factory.get("/some_path/")
+def request_without_session(request_factory, **kwargs):
+    path = kwargs.get("path", "/some_path/")
+    request = request_factory.get(path)
     middleware = SessionMiddleware(lambda req: HttpResponse())
     middleware.process_request(request)
     request.session.flush()
@@ -311,20 +312,37 @@ def test_url_exclusion(request_with_session, test_user, path, regex, should_crea
     ), f"Unexpected UserActivity creation for {path}. Exists = {exists}"
 
 
-# @pytest.mark.django_db
-# @pytest.mark.parametrize(
-#     "url_flag",
-#     [
-#         {"source_url": "/", "target_url": "/signup/"},
-#         {"source_url": "/accounts/signup/", "target_url": "/accounts/login/"},
-#     ]
-# )
-# @override_settings(ROOT_URLCONF="tests.test_urls")
-# def test_allauth_signup_url(url_flag, request_with_session, test_user):
-#     """Test to ensure that the allauth signup url is tracked by the middleware"""
-#     flag, flag_url = flag_and_url
-#     request = request_with_session
-#     request.user = test_user
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "ignore_for_authenticated_users", [True, False]
+)
+@override_settings(DEBUG=True)
+def test_recording_when_authenticated(request_with_session, test_user, flag_and_url, mocker, ignore_for_authenticated_users):
+    """Test to check that authenticated users are ignored when ignore_for_authenticated_users=True."""
+    flag, flag_url = flag_and_url
+    request = request_with_session
+    request.path = flag_url.source_url
+    request.user = test_user
+    request.user.is_staff = False
+
+    middleware = UserActivityMiddleware(lambda req: HttpResponse())
+    mocker.patch.object(UserActivityMiddleware, "flag_is_active", return_value=True)
+    mocker.patch.object(flag, "ignore_for_authenticated_users", ignore_for_authenticated_users)
+    flag.save()
+    response = middleware(request)
+
+    assert response.status_code == 200
+
+    flag_url.refresh_from_db()
+    
+    assert request.path == flag_url.source_url
+    assert request.user.is_authenticated
+    assert flag.ignore_for_authenticated_users == ignore_for_authenticated_users
+    if ignore_for_authenticated_users:
+        assert flag_url.active_flag_views == 0
+    else:
+        assert flag_url.active_flag_views == 1
+    assert flag_url.inactive_flag_views == 0
 
 
 @pytest.mark.django_db

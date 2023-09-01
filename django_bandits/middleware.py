@@ -76,15 +76,20 @@ class UserActivityMiddleware:
 
         # Checks to see which flags are active on the source page, if any
         for flag in BanditFlag.objects.all():
+            if flag.ignore_for_authenticated_users and request.user.is_authenticated:
+                print(f"Flag {flag.name} ignored for authenticated users")
+                continue
+            if not flag.ignore_for_authenticated_users and request.user.is_authenticated:
+                print(f"Flag {flag.name} not ignored for authenticated users")
             flag_url = FlagUrl.objects.filter(flag=flag).first()
             if flag_url:
                 if current_url == flag_url.source_url:
                     # is_flag_active determines whether or not the user sees the feature
                     is_flag_active = self.flag_is_active(request, flag.name)
-                    # if DEBUG:
-                    #     print(
-                    #         f"Checking flag {flag.name} for user {request.user}\nFlag URL: {flag_url.source_url}\nFlag is active: {is_flag_active}"
-                    #     )
+                    if DEBUG:
+                        print(
+                            f"Checking flag {flag.name} for user {request.user}\nFlag URL: {flag_url.source_url}\nFlag is active: {is_flag_active}"
+                        )
                     if is_flag_active is not None:
                         ua_flag = UserActivityFlag.objects.create(
                             user_activity=user_activity,
