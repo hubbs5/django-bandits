@@ -33,6 +33,15 @@ def request_with_session(request_factory):
     return request
 
 
+@pytest.mark.django_db(transaction=True)
+@pytest.fixture
+def request_without_session(request_factory):
+    request = request_factory.get("/some_path/")
+    middleware = SessionMiddleware(lambda req: HttpResponse())
+    middleware.process_request(request)
+    request.session.flush()
+    return request
+
 @pytest.fixture
 def test_user(db):
     return User.objects.create_user(
@@ -82,6 +91,7 @@ def test_url_exclusion(request_with_session, test_user):
 
 @pytest.mark.django_db
 def test_useractivity_creation_authenticated(request_with_session, test_user):
+    """Test to ensure user activity is created for authenticated users."""
     request = request_with_session
     request.user = test_user
     request.user.is_staff = False
@@ -98,7 +108,9 @@ def test_useractivity_creation_authenticated(request_with_session, test_user):
 
 
 @pytest.mark.django_db
+# @pytest.mark.parametrize("session", [True, False])
 def test_useractivity_creation_anonymous(request_with_session):
+    """Test to ensure user activity is created for anonymous users and no session is created for users without session ID"""
     request = request_with_session
     request.user = AnonymousUser()
 
@@ -110,6 +122,20 @@ def test_useractivity_creation_anonymous(request_with_session):
     assert user_activity
     assert not user_activity.user
     assert user_activity.session_key == request.session.session_key
+
+
+@pytest.mark.django_db
+def test_useractivity_no_session(request_without_session):
+    """Test to ensure no user activity is logged if a session is not created"""
+    request = request_without_session
+    request.user = AnonymousUser()
+
+    middleware = UserActivityMiddleware(lambda req: HttpResponse())
+    response = middleware(request)
+
+    assert response.status_code == 200
+    user_activity = UserActivity.objects.filter(url=request.path).first()
+    assert not user_activity
 
 
 @pytest.mark.django_db
