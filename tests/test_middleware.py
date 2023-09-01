@@ -2,7 +2,7 @@ import pytest
 from django.db import transaction
 from django.conf import settings
 from django.http import HttpResponse
-from django.test import RequestFactory
+from django.test import RequestFactory, override_settings
 from django.contrib.auth.models import AnonymousUser, User
 from django.contrib.sessions.middleware import SessionMiddleware
 
@@ -25,11 +25,23 @@ def request_factory():
 
 @pytest.mark.django_db(transaction=True)
 @pytest.fixture
-def request_with_session(request_factory):
-    request = request_factory.get("/some_path/")
+def request_with_session(request_factory, **kwargs):
+    path = kwargs.get("path", "/some_path/")
+    request = request_factory.get(path)
     middleware = SessionMiddleware(lambda req: HttpResponse())
     middleware.process_request(request)
     request.session.save()
+    return request
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.fixture
+def request_without_session(request_factory, **kwargs):
+    path = kwargs.get("path", "/some_path/")
+    request = request_factory.get(path)
+    middleware = SessionMiddleware(lambda req: HttpResponse())
+    middleware.process_request(request)
+    request.session.flush()
     return request
 
 
@@ -41,10 +53,12 @@ def test_user(db):
 
 
 @pytest.fixture
-def flag_and_url(db):
+def flag_and_url(db, **kwargs):
+    source_url = kwargs.get("source_url", "/source/")
+    target_url = kwargs.get("target_url", "/target/")
     flag = BanditFlag.objects.create(name="test_flag")
     flag_url = FlagUrl.objects.create(
-        flag=flag, source_url="/source/", target_url="/target/"
+        flag=flag, source_url=source_url, target_url=target_url
     )
     return flag, flag_url
 
@@ -82,6 +96,7 @@ def test_url_exclusion(request_with_session, test_user):
 
 @pytest.mark.django_db
 def test_useractivity_creation_authenticated(request_with_session, test_user):
+    """Test to ensure user activity is created for authenticated users."""
     request = request_with_session
     request.user = test_user
     request.user.is_staff = False
@@ -98,7 +113,9 @@ def test_useractivity_creation_authenticated(request_with_session, test_user):
 
 
 @pytest.mark.django_db
+# @pytest.mark.parametrize("session", [True, False])
 def test_useractivity_creation_anonymous(request_with_session):
+    """Test to ensure user activity is created for anonymous users and no session is created for users without session ID"""
     request = request_with_session
     request.user = AnonymousUser()
 
@@ -110,6 +127,20 @@ def test_useractivity_creation_anonymous(request_with_session):
     assert user_activity
     assert not user_activity.user
     assert user_activity.session_key == request.session.session_key
+
+
+@pytest.mark.django_db
+def test_useractivity_no_session(request_without_session):
+    """Test to ensure no user activity is logged if a session is not created"""
+    request = request_without_session
+    request.user = AnonymousUser()
+
+    middleware = UserActivityMiddleware(lambda req: HttpResponse())
+    response = middleware(request)
+
+    assert response.status_code == 200
+    user_activity = UserActivity.objects.filter(url=request.path).first()
+    assert not user_activity
 
 
 @pytest.mark.django_db
@@ -187,7 +218,7 @@ def test_flag_conversion_recording(
 
 @pytest.mark.django_db
 @pytest.mark.parametrize(
-    "active_flag_conversions, inactive_flag_conversions," + "winning_arm, bandit_model",
+    "active_flag_conversions, inactive_flag_conversions, winning_arm, bandit_model",
     [
         (100, 50, 1, EpsilonGreedyModel),
         (50, 100, 0, EpsilonGreedyModel),
@@ -279,3 +310,129 @@ def test_url_exclusion(request_with_session, test_user, path, regex, should_crea
     assert (
         exists is should_create
     ), f"Unexpected UserActivity creation for {path}. Exists = {exists}"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("ignore_for_authenticated_users", [True, False])
+@override_settings(DEBUG=True)
+def test_recording_when_authenticated(
+    request_with_session,
+    test_user,
+    flag_and_url,
+    mocker,
+    ignore_for_authenticated_users,
+):
+    """Test to check that authenticated users are ignored when ignore_for_authenticated_users=True."""
+    flag, flag_url = flag_and_url
+    request = request_with_session
+    request.path = flag_url.source_url
+    request.user = test_user
+    request.user.is_staff = False
+
+    middleware = UserActivityMiddleware(lambda req: HttpResponse())
+    mocker.patch.object(UserActivityMiddleware, "flag_is_active", return_value=True)
+    mocker.patch.object(
+        flag, "ignore_for_authenticated_users", ignore_for_authenticated_users
+    )
+    flag.save()
+    response = middleware(request)
+
+    assert response.status_code == 200
+
+    flag_url.refresh_from_db()
+
+    assert request.path == flag_url.source_url
+    assert request.user.is_authenticated
+    assert flag.ignore_for_authenticated_users == ignore_for_authenticated_users
+    if ignore_for_authenticated_users:
+        assert flag_url.active_flag_views == 0
+    else:
+        assert flag_url.active_flag_views == 1
+    assert flag_url.inactive_flag_views == 0
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ["active_flag", "url_flag", "request_with_session"],
+    [
+        (
+            True,
+            {"source_url": "/", "target_url": "/signup/"},
+            {"path": "/accounts/signup/"},
+        ),
+        (
+            True,
+            {"source_url": "/accounts/signup/", "target_url": "/accounts/login/"},
+            {"path": "/accounts/signup/"},
+        ),
+    ],
+    indirect=["request_with_session"],
+)
+def test_allauth_conversion_recording(
+    request_with_session, test_user, flag_and_url, mocker, active_flag, url_flag
+):
+    flag, flag_url = flag_and_url
+    request = request_with_session
+    request.user = test_user
+
+    mocker.patch.object(
+        UserActivityMiddleware, "flag_is_active", return_value=active_flag
+    )
+
+    # Simulate the user visiting the source_url first
+    request.path = flag_url.source_url
+    middleware_source = UserActivityMiddleware(lambda req: HttpResponse())
+    response_source = middleware_source(request)
+    assert (
+        response_source.status_code == 200
+    ), "Expected 200 response code from source_url"
+
+    # Simulate visiting the target_url
+    request.path = flag_url.target_url
+    middleware_target = UserActivityMiddleware(lambda req: HttpResponse())
+    response_target = middleware_target(request)
+    assert (
+        response_target.status_code == 200
+    ), "Expected 200 response code from target_url"
+    flag_url.refresh_from_db()
+
+    active_source_flag = middleware_target._get_latest_flagged_source_url(
+        request.session.session_key, flag_url.source_url
+    )
+
+    assert (
+        active_source_flag == active_flag
+    ), f"Expected {active_flag}, got {active_source_flag}"
+    if active_source_flag:
+        assert (
+            flag_url.active_flag_conversions == 1
+        ), f"Expected 1 active flag conversion, got {flag_url.active_flag_conversions}"
+    else:
+        assert (
+            flag_url.inactive_flag_conversions == 1
+        ), f"Expected 1 inactive flag conversion, got {flag_url.inactive_flag_conversions}"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("success, code", [(True, 200), (False, 404)])
+def test_user_activity_deleted_on_404(request_with_session, test_user, success, code):
+    """Test to ensure that UserActivity is deleted when a 404 is returned."""
+    path = "/non-existend-path/"
+    request = request_with_session
+    request.path = path
+    request.user = test_user
+
+    middleware = UserActivityMiddleware(lambda req: HttpResponse(status=code))
+    response = middleware(request)
+
+    assert response.status_code == code
+
+    urls = [ua.url for ua in UserActivity.objects.all()]
+    if success:
+        assert UserActivity.objects.filter(
+            url__in=[path, path[:-1]]
+        ).exists(), f"Expected {path} in {urls}"
+    else:
+        assert not UserActivity.objects.filter(
+            url__in=[path, path[:-1]]
+        ).exists(), f"Expected {path} in {urls}"
