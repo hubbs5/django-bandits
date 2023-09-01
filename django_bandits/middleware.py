@@ -55,6 +55,9 @@ class UserActivityMiddleware:
         session_key = request.session.session_key
         current_url = request.path
 
+        if session_key is None:
+            return self.get_response(request)
+
         if self.check_exclusion(current_url):
             return self.get_response(request)
 
