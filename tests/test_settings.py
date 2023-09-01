@@ -12,14 +12,18 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "waffle",
     "django_bandits",
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
 ]
 
 MIDDLEWARE = [
-    "django.contrib.sessions.middleware.SessionMiddleware",
-    "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.common.CommonMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "allauth.account.middleware.AccountMiddleware",
     "django_bandits.middleware.UserActivityMiddleware",
 ]
 
@@ -35,3 +39,9 @@ WAFFLE_FLAG_MODEL = "django_bandits.BanditFlag"
 USE_TZ = True  # Set to true to avoid django 5.0 warning
 
 EXCLUDE_FROM_TRACKING = ["/admin"]
+
+
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",
+    "allauth.account.auth_backends.AuthenticationBackend",
+]

@@ -1,8 +1,8 @@
-import pytest       
+import pytest
 from django.db import transaction
 from django.conf import settings
 from django.http import HttpResponse
-from django.test import RequestFactory
+from django.test import RequestFactory, override_settings
 from django.contrib.auth.models import AnonymousUser, User
 from django.contrib.sessions.middleware import SessionMiddleware
 
@@ -25,8 +25,9 @@ def request_factory():
 
 @pytest.mark.django_db(transaction=True)
 @pytest.fixture
-def request_with_session(request_factory):
-    request = request_factory.get("/some_path/")
+def request_with_session(request_factory, **kwargs):
+    path = kwargs.get("path", "/some_path/")
+    request = request_factory.get(path)
     middleware = SessionMiddleware(lambda req: HttpResponse())
     middleware.process_request(request)
     request.session.save()
@@ -42,6 +43,7 @@ def request_without_session(request_factory):
     request.session.flush()
     return request
 
+
 @pytest.fixture
 def test_user(db):
     return User.objects.create_user(
@@ -50,10 +52,12 @@ def test_user(db):
 
 
 @pytest.fixture
-def flag_and_url(db):
+def flag_and_url(db, **kwargs):
+    source_url = kwargs.get("source_url", "/source/")
+    target_url = kwargs.get("target_url", "/target/")
     flag = BanditFlag.objects.create(name="test_flag")
     flag_url = FlagUrl.objects.create(
-        flag=flag, source_url="/source/", target_url="/target/"
+        flag=flag, source_url=source_url, target_url=target_url
     )
     return flag, flag_url
 
@@ -305,3 +309,81 @@ def test_url_exclusion(request_with_session, test_user, path, regex, should_crea
     assert (
         exists is should_create
     ), f"Unexpected UserActivity creation for {path}. Exists = {exists}"
+
+
+# @pytest.mark.django_db
+# @pytest.mark.parametrize(
+#     "url_flag",
+#     [
+#         {"source_url": "/", "target_url": "/signup/"},
+#         {"source_url": "/accounts/signup/", "target_url": "/accounts/login/"},
+#     ]
+# )
+# @override_settings(ROOT_URLCONF="tests.test_urls")
+# def test_allauth_signup_url(url_flag, request_with_session, test_user):
+#     """Test to ensure that the allauth signup url is tracked by the middleware"""
+#     flag, flag_url = flag_and_url
+#     request = request_with_session
+#     request.user = test_user
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ["active_flag", "url_flag", "request_with_session"],
+    [
+        (
+            True,
+            {"source_url": "/", "target_url": "/signup/"},
+            {"path": "/accounts/signup/"},
+        ),
+        (
+            True,
+            {"source_url": "/accounts/signup/", "target_url": "/accounts/login/"},
+            {"path": "/accounts/signup/"},
+        ),
+    ],
+    indirect=["request_with_session"],
+)
+def test_allauth_conversion_recording(
+    request_with_session, test_user, flag_and_url, mocker, active_flag, url_flag
+):
+    flag, flag_url = flag_and_url
+    request = request_with_session
+    request.user = test_user
+
+    mocker.patch.object(
+        UserActivityMiddleware, "flag_is_active", return_value=active_flag
+    )
+
+    # Simulate the user visiting the source_url first
+    request.path = flag_url.source_url
+    middleware_source = UserActivityMiddleware(lambda req: HttpResponse())
+    response_source = middleware_source(request)
+    assert (
+        response_source.status_code == 200
+    ), "Expected 200 response code from source_url"
+
+    # Simulate visiting the target_url
+    request.path = flag_url.target_url
+    middleware_target = UserActivityMiddleware(lambda req: HttpResponse())
+    response_target = middleware_target(request)
+    assert (
+        response_target.status_code == 200
+    ), "Expected 200 response code from target_url"
+    flag_url.refresh_from_db()
+
+    active_source_flag = middleware_target._get_latest_flagged_source_url(
+        request.session.session_key, flag_url.source_url
+    )
+
+    assert (
+        active_source_flag == active_flag
+    ), f"Expected {active_flag}, got {active_source_flag}"
+    if active_source_flag:
+        assert (
+            flag_url.active_flag_conversions == 1
+        ), f"Expected 1 active flag conversion, got {flag_url.active_flag_conversions}"
+    else:
+        assert (
+            flag_url.inactive_flag_conversions == 1
+        ), f"Expected 1 inactive flag conversion, got {flag_url.inactive_flag_conversions}"
