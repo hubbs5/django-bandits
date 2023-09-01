@@ -79,7 +79,10 @@ class UserActivityMiddleware:
             if flag.ignore_for_authenticated_users and request.user.is_authenticated:
                 print(f"Flag {flag.name} ignored for authenticated users")
                 continue
-            if not flag.ignore_for_authenticated_users and request.user.is_authenticated:
+            if (
+                not flag.ignore_for_authenticated_users
+                and request.user.is_authenticated
+            ):
                 print(f"Flag {flag.name} not ignored for authenticated users")
             flag_url = FlagUrl.objects.filter(flag=flag).first()
             if flag_url:
@@ -142,6 +145,9 @@ class UserActivityMiddleware:
                                 break
 
         response = self.get_response(request)
+
+        if response.status_code == 404:
+            user_activity.delete()
 
         return response
 

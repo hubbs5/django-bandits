@@ -218,7 +218,7 @@ def test_flag_conversion_recording(
 
 @pytest.mark.django_db
 @pytest.mark.parametrize(
-    "active_flag_conversions, inactive_flag_conversions," + "winning_arm, bandit_model",
+    "active_flag_conversions, inactive_flag_conversions, winning_arm, bandit_model",
     [
         (100, 50, 1, EpsilonGreedyModel),
         (50, 100, 0, EpsilonGreedyModel),
@@ -313,11 +313,15 @@ def test_url_exclusion(request_with_session, test_user, path, regex, should_crea
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize(
-    "ignore_for_authenticated_users", [True, False]
-)
+@pytest.mark.parametrize("ignore_for_authenticated_users", [True, False])
 @override_settings(DEBUG=True)
-def test_recording_when_authenticated(request_with_session, test_user, flag_and_url, mocker, ignore_for_authenticated_users):
+def test_recording_when_authenticated(
+    request_with_session,
+    test_user,
+    flag_and_url,
+    mocker,
+    ignore_for_authenticated_users,
+):
     """Test to check that authenticated users are ignored when ignore_for_authenticated_users=True."""
     flag, flag_url = flag_and_url
     request = request_with_session
@@ -327,14 +331,16 @@ def test_recording_when_authenticated(request_with_session, test_user, flag_and_
 
     middleware = UserActivityMiddleware(lambda req: HttpResponse())
     mocker.patch.object(UserActivityMiddleware, "flag_is_active", return_value=True)
-    mocker.patch.object(flag, "ignore_for_authenticated_users", ignore_for_authenticated_users)
+    mocker.patch.object(
+        flag, "ignore_for_authenticated_users", ignore_for_authenticated_users
+    )
     flag.save()
     response = middleware(request)
 
     assert response.status_code == 200
 
     flag_url.refresh_from_db()
-    
+
     assert request.path == flag_url.source_url
     assert request.user.is_authenticated
     assert flag.ignore_for_authenticated_users == ignore_for_authenticated_users
@@ -405,3 +411,28 @@ def test_allauth_conversion_recording(
         assert (
             flag_url.inactive_flag_conversions == 1
         ), f"Expected 1 inactive flag conversion, got {flag_url.inactive_flag_conversions}"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("success, code", [(True, 200), (False, 404)])
+def test_user_activity_deleted_on_404(request_with_session, test_user, success, code):
+    """Test to ensure that UserActivity is deleted when a 404 is returned."""
+    path = "/non-existend-path/"
+    request = request_with_session
+    request.path = path
+    request.user = test_user
+
+    middleware = UserActivityMiddleware(lambda req: HttpResponse(status=code))
+    response = middleware(request)
+
+    assert response.status_code == code
+
+    urls = [ua.url for ua in UserActivity.objects.all()]
+    if success:
+        assert UserActivity.objects.filter(
+            url__in=[path, path[:-1]]
+        ).exists(), f"Expected {path} in {urls}"
+    else:
+        assert not UserActivity.objects.filter(
+            url__in=[path, path[:-1]]
+        ).exists(), f"Expected {path} in {urls}"
