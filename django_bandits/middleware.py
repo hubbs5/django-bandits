@@ -44,10 +44,12 @@ class UserActivityMiddleware:
             ]
             self.exclude_regex = getattr(settings, "EXCLUDE_FROM_TRACKING_REGEX", "")
         if any(current_url.startswith(path) for path in self.exclude):
-            print(f"{current_url} excluded by exclusion path: {self.exclude}")
+            if DEBUG:
+                print(f"{current_url} excluded by exclusion path: {self.exclude}")
             return True
         if self.exclude_regex and re.search(self.exclude_regex, current_url):
-            print(f"{current_url} excluded by regex: {self.exclude_regex}")
+            if DEBUG:
+                print(f"{current_url} excluded by regex: {self.exclude_regex}")
             return True
         return False
 
@@ -77,13 +79,15 @@ class UserActivityMiddleware:
         # Checks to see which flags are active on the source page, if any
         for flag in BanditFlag.objects.all():
             if flag.ignore_for_authenticated_users and request.user.is_authenticated:
-                print(f"Flag {flag.name} ignored for authenticated users")
+                if DEBUG:
+                    print(f"Flag {flag.name} ignored for authenticated users")
                 continue
-            if (
-                not flag.ignore_for_authenticated_users
-                and request.user.is_authenticated
-            ):
-                print(f"Flag {flag.name} not ignored for authenticated users")
+            if DEBUG:
+                if (
+                    not flag.ignore_for_authenticated_users
+                    and request.user.is_authenticated
+                ):
+                    print(f"Flag {flag.name} not ignored for authenticated users")
             flag_url = FlagUrl.objects.filter(flag=flag).first()
             if flag_url:
                 if current_url == flag_url.source_url:
@@ -120,10 +124,10 @@ class UserActivityMiddleware:
                         )
                         # TODO: Update to handle cases where users didn't see the particular
                         # landing page or feature flag at all
-                        # if DEBUG:
-                        #     print(
-                        #         f"User reached target URL {flag_url.target_url}\nActive source flag: {active_source_flag}"
-                        #     )
+                        if DEBUG:
+                            print(
+                                f"User reached target URL {flag_url.target_url}\nActive source flag: {active_source_flag}"
+                            )
                         if active_source_flag:
                             flag_url.active_flag_conversions += 1
                         else:
